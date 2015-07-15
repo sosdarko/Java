@@ -21,7 +21,7 @@ public class Branches implements ComboBoxModel<Branch> {
     public Branches() {
         nSelectedItem = -1;
     }
-    
+
     public Branches(ArrayList<Branch> _b)
     {
         nSelectedItem = -1;
@@ -32,15 +32,28 @@ public class Branches implements ComboBoxModel<Branch> {
     public Object getSelectedItem() {
         if (nSelectedItem < 0)
             return null;
-        else
-            return b.get(nSelectedItem);
+        else {
+            if (nSelectedItem < b.size()) {
+                return b.get(nSelectedItem);
+            }
+            else {
+                if (b.size() > 0) {
+                    return b.get(0);
+                }
+                else
+                    return null;
+            }
+        }
     }
 
     @Override
     public void setSelectedItem(Object anItem) {
-        if (b.contains(anItem)) {
-            nSelectedItem = b.indexOf(anItem);
+        Branch branch = (Branch) anItem;
+        if (b.contains(branch)) {
+            nSelectedItem = b.indexOf(branch);
         }
+        else
+            nSelectedItem = -1;
     }
 
     @Override
@@ -62,4 +75,4 @@ public class Branches implements ComboBoxModel<Branch> {
     public void removeListDataListener(ListDataListener l) {
         listeners.remove(l);
     }
-}
+} 
