@@ -14,10 +14,21 @@ import java.io.Serializable;
 public class Branch implements Serializable {
     String name;
     String connString;
+    String UserName;
+    String Password;
+    String TnsEntry;
 
     public Branch(String name, String connString) {
         this.name = name;
         this.connString = connString;
+    }
+
+    public Branch(String name, String UserName, String Password, String TnsEntry) {
+        this.name = name;
+        this.UserName = UserName;
+        this.Password = Password;
+        this.TnsEntry = TnsEntry;
+        this.connString = UserName+ "/" + Password + "@" + TnsEntry;
     }
 
     public String getConnString() {
@@ -36,8 +47,32 @@ public class Branch implements Serializable {
         this.name = name;
     }
 
+    public String getTnsEntry() {
+        return TnsEntry;
+    }
+
+    public void setPassword(String sPassword) {
+        this.Password = sPassword;
+    }
+
+    public void setTnsEntry(String sTnsEntry) {
+        this.TnsEntry = sTnsEntry;
+    }
+
+    public String getUserName() {
+        return UserName;
+    }
+
+    public String getPassword() {
+        return Password;
+    }
+
+    public void setUserName(String UserName) {
+        this.UserName = UserName;
+    }
+
     @Override
     public String toString() {
         return name;
     }
-}
+} 
