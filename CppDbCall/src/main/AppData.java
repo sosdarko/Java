@@ -71,6 +71,28 @@ public class AppData {
     public void addBranch(String bname, String connstr) {
         branches.add(new Branch(bname, connstr));
     }
+    
+    public void addBranch(Branch b) {
+        branches.add(b);
+    }
+    
+    public boolean delBranch(String bname) {
+        int n = 0;
+        Branch b = branches.get(n);
+        while (n < branches.size() && (b.name == null ? bname != null : !b.name.equals(bname))) {
+            n = n + 1;
+            b = branches.get(n);
+        }
+        if (b != null && b.name.equals(bname)) {
+            branches.remove(b);
+            return true;
+        }
+        return false;
+    }
+    
+    public boolean delBranch(Branch b) {
+        return branches.remove(b);
+    }
 
     public String getTnsNamesPath() {
         return tnsNamesPath;
