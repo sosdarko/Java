@@ -28,6 +28,26 @@ public class AddBranchJFrame extends javax.swing.JDialog {
     {
         return jTextConnectionString.getText();
     }
+    
+    public String getUsername()
+    {
+        return jTextUser.getText();
+    }
+    
+    public String getPassword()
+    {
+        return jTextPassword.getText();
+    }
+    
+    public String getTNSEntry()
+    {
+        return jTextTNSEntry.getText();
+    }
+    
+    public void SetConnectionString()
+    {
+        jTextConnectionString.setText(getUsername() + "/" + getPassword() + "@" + getTNSEntry());
+    }
     /**
      * This method is called from within the constructor to initialize the form.
      * WARNING: Do NOT modify this code. The content of this method is always
@@ -43,10 +63,18 @@ public class AddBranchJFrame extends javax.swing.JDialog {
         jTextConnectionString = new javax.swing.JTextField();
         jButtonOk = new javax.swing.JButton();
         jButtonCancel = new javax.swing.JButton();
+        jTextUser = new javax.swing.JTextField();
+        jLabel3 = new javax.swing.JLabel();
+        jTextPassword = new javax.swing.JTextField();
+        jLabel4 = new javax.swing.JLabel();
+        jTextTNSEntry = new javax.swing.JTextField();
+        jLabel5 = new javax.swing.JLabel();
 
         setDefaultCloseOperation(javax.swing.WindowConstants.DISPOSE_ON_CLOSE);
         setTitle("Add new branch");
+        setLocationByPlatform(true);
         setName("Add Branch"); // NOI18N
+        setResizable(false);
         setType(java.awt.Window.Type.UTILITY);
 
         jLabel1.setText("Branch name:");
@@ -62,12 +90,50 @@ public class AddBranchJFrame extends javax.swing.JDialog {
         });
 
         jButtonCancel.setText("Cancel");
-        jButtonCancel.setActionCommand("Cancel");
         jButtonCancel.addActionListener(new java.awt.event.ActionListener() {
             public void actionPerformed(java.awt.event.ActionEvent evt) {
                 jButtonCancelActionPerformed(evt);
             }
         });
+
+        jTextUser.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                SetConnectionString(evt);
+            }
+        });
+        jTextUser.addKeyListener(new java.awt.event.KeyAdapter() {
+            public void keyTyped(java.awt.event.KeyEvent evt) {
+                jTextUserKeyTyped(evt);
+            }
+        });
+
+        jLabel3.setText("User");
+
+        jTextPassword.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                SetConnectionString(evt);
+            }
+        });
+        jTextPassword.addKeyListener(new java.awt.event.KeyAdapter() {
+            public void keyTyped(java.awt.event.KeyEvent evt) {
+                jTextPasswordKeyTyped(evt);
+            }
+        });
+
+        jLabel4.setText("Password");
+
+        jTextTNSEntry.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                SetConnectionString(evt);
+            }
+        });
+        jTextTNSEntry.addKeyListener(new java.awt.event.KeyAdapter() {
+            public void keyTyped(java.awt.event.KeyEvent evt) {
+                jTextTNSEntryKeyTyped(evt);
+            }
+        });
+
+        jLabel5.setText("TNS Entry");
 
         javax.swing.GroupLayout layout = new javax.swing.GroupLayout(getContentPane());
         getContentPane().setLayout(layout);
@@ -76,27 +142,43 @@ public class AddBranchJFrame extends javax.swing.JDialog {
             .addGroup(layout.createSequentialGroup()
                 .addContainerGap()
                 .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-                    .addComponent(jLabel1)
-                    .addComponent(jTextBranchName, javax.swing.GroupLayout.PREFERRED_SIZE, 108, javax.swing.GroupLayout.PREFERRED_SIZE)
-                    .addComponent(jButtonOk))
-                .addGap(18, 18, 18)
-                .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.TRAILING)
                     .addGroup(layout.createSequentialGroup()
-                        .addGap(10, 155, Short.MAX_VALUE)
-                        .addComponent(jButtonCancel)
-                        .addContainerGap())
-                    .addGroup(layout.createSequentialGroup()
-                        .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                        .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.TRAILING)
+                            .addComponent(jLabel1, javax.swing.GroupLayout.Alignment.LEADING)
                             .addGroup(layout.createSequentialGroup()
-                                .addComponent(jLabel2)
-                                .addGap(69, 127, Short.MAX_VALUE))
-                            .addComponent(jTextConnectionString))
-                        .addGap(12, 12, 12))))
+                                .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.TRAILING, false)
+                                    .addComponent(jTextBranchName, javax.swing.GroupLayout.Alignment.LEADING, javax.swing.GroupLayout.DEFAULT_SIZE, 108, Short.MAX_VALUE)
+                                    .addComponent(jTextUser, javax.swing.GroupLayout.Alignment.LEADING))
+                                .addGap(13, 13, 13)))
+                        .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING, false)
+                            .addComponent(jLabel2)
+                            .addComponent(jTextConnectionString, javax.swing.GroupLayout.PREFERRED_SIZE, 234, javax.swing.GroupLayout.PREFERRED_SIZE)
+                            .addGroup(layout.createSequentialGroup()
+                                .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                                    .addComponent(jTextPassword, javax.swing.GroupLayout.PREFERRED_SIZE, 100, javax.swing.GroupLayout.PREFERRED_SIZE)
+                                    .addComponent(jLabel4))
+                                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.UNRELATED)
+                                .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                                    .addComponent(jLabel5)
+                                    .addComponent(jTextTNSEntry))))
+                        .addContainerGap(javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))
+                    .addGroup(layout.createSequentialGroup()
+                        .addComponent(jLabel3)
+                        .addGap(0, 0, Short.MAX_VALUE))))
+            .addGroup(layout.createSequentialGroup()
+                .addGap(109, 109, 109)
+                .addComponent(jButtonOk)
+                .addGap(18, 18, 18)
+                .addComponent(jButtonCancel)
+                .addGap(0, 0, Short.MAX_VALUE))
         );
+
+        layout.linkSize(javax.swing.SwingConstants.HORIZONTAL, new java.awt.Component[] {jButtonCancel, jButtonOk});
+
         layout.setVerticalGroup(
             layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
             .addGroup(javax.swing.GroupLayout.Alignment.TRAILING, layout.createSequentialGroup()
-                .addContainerGap(14, Short.MAX_VALUE)
+                .addContainerGap()
                 .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
                     .addComponent(jLabel1)
                     .addComponent(jLabel2))
@@ -105,6 +187,16 @@ public class AddBranchJFrame extends javax.swing.JDialog {
                     .addComponent(jTextBranchName, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
                     .addComponent(jTextConnectionString, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE))
                 .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
+                    .addComponent(jLabel3)
+                    .addComponent(jLabel4)
+                    .addComponent(jLabel5))
+                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
+                    .addComponent(jTextUser, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                    .addComponent(jTextPassword, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                    .addComponent(jTextTNSEntry, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE))
+                .addGap(18, 18, 18)
                 .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
                     .addComponent(jButtonOk)
                     .addComponent(jButtonCancel))
@@ -123,6 +215,22 @@ public class AddBranchJFrame extends javax.swing.JDialog {
         bSuccess = false;
         this.dispose();
     }//GEN-LAST:event_jButtonCancelActionPerformed
+
+    private void SetConnectionString(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_SetConnectionString
+        SetConnectionString();
+    }//GEN-LAST:event_SetConnectionString
+
+    private void jTextUserKeyTyped(java.awt.event.KeyEvent evt) {//GEN-FIRST:event_jTextUserKeyTyped
+        SetConnectionString();
+    }//GEN-LAST:event_jTextUserKeyTyped
+
+    private void jTextPasswordKeyTyped(java.awt.event.KeyEvent evt) {//GEN-FIRST:event_jTextPasswordKeyTyped
+        SetConnectionString();
+    }//GEN-LAST:event_jTextPasswordKeyTyped
+
+    private void jTextTNSEntryKeyTyped(java.awt.event.KeyEvent evt) {//GEN-FIRST:event_jTextTNSEntryKeyTyped
+        SetConnectionString();
+    }//GEN-LAST:event_jTextTNSEntryKeyTyped
 
     /**
      * @param args the command line arguments
@@ -164,7 +272,13 @@ public class AddBranchJFrame extends javax.swing.JDialog {
     private javax.swing.JButton jButtonOk;
     private javax.swing.JLabel jLabel1;
     private javax.swing.JLabel jLabel2;
+    private javax.swing.JLabel jLabel3;
+    private javax.swing.JLabel jLabel4;
+    private javax.swing.JLabel jLabel5;
     private javax.swing.JTextField jTextBranchName;
     private javax.swing.JTextField jTextConnectionString;
+    private javax.swing.JTextField jTextPassword;
+    private javax.swing.JTextField jTextTNSEntry;
+    private javax.swing.JTextField jTextUser;
     // End of variables declaration//GEN-END:variables
-}
+} 
