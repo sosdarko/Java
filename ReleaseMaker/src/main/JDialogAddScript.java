@@ -11,14 +11,34 @@ package main;
  */
 public class JDialogAddScript extends javax.swing.JDialog {
 
+    public boolean bSuccess;
+    public String sScriptName;
     /**
      * Creates new form JDialogAddScript
      */
     public JDialogAddScript(java.awt.Frame parent, boolean modal) {
         super(parent, modal);
         initComponents();
+        bSuccess = false;
     }
 
+    void DeriveFilename()
+    {
+        String s;
+
+        s = jTextObjectName.getText();
+
+        if (jRadioButtonDDL.isSelected())
+            s += ".DDL";
+        else
+            if (jRadioButtonDML.isSelected())
+                s += ".DML";
+
+        s += ".sql";
+        
+        jTextFilename.setText(s);
+    }
+    
     /**
      * This method is called from within the constructor to initialize the form.
      * WARNING: Do NOT modify this code. The content of this method is always
@@ -31,31 +51,50 @@ public class JDialogAddScript extends javax.swing.JDialog {
         buttonGroupScriptType = new javax.swing.ButtonGroup();
         buttonGroupSingleMulti = new javax.swing.ButtonGroup();
         jRadioButtonDML = new javax.swing.JRadioButton();
-        jRadioButton1 = new javax.swing.JRadioButton();
+        jRadioButtonDDL = new javax.swing.JRadioButton();
         jLabel1 = new javax.swing.JLabel();
-        jRadioButton2 = new javax.swing.JRadioButton();
-        jRadioButton3 = new javax.swing.JRadioButton();
+        jRadioButtonSingle = new javax.swing.JRadioButton();
+        jRadioButtonMulti = new javax.swing.JRadioButton();
         jLabel2 = new javax.swing.JLabel();
         jLabel3 = new javax.swing.JLabel();
         jComboBox1 = new javax.swing.JComboBox();
         jButton1 = new javax.swing.JButton();
+        jButton2 = new javax.swing.JButton();
+        jScrollPane1 = new javax.swing.JScrollPane();
+        jTextArea1 = new javax.swing.JTextArea();
+        jLabel4 = new javax.swing.JLabel();
+        jTextObjectName = new javax.swing.JTextField();
+        jLabel5 = new javax.swing.JLabel();
+        jTextFilename = new javax.swing.JTextField();
 
         setDefaultCloseOperation(javax.swing.WindowConstants.DISPOSE_ON_CLOSE);
         setTitle("Add script");
 
         buttonGroupScriptType.add(jRadioButtonDML);
+        jRadioButtonDML.setSelected(true);
         jRadioButtonDML.setText("DML");
+        jRadioButtonDML.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                jRadioButtonDMLActionPerformed(evt);
+            }
+        });
 
-        buttonGroupScriptType.add(jRadioButton1);
-        jRadioButton1.setText("DDL");
+        buttonGroupScriptType.add(jRadioButtonDDL);
+        jRadioButtonDDL.setText("DDL");
+        jRadioButtonDDL.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                jRadioButtonDDLActionPerformed(evt);
+            }
+        });
 
         jLabel1.setText("Script type:");
 
-        buttonGroupSingleMulti.add(jRadioButton2);
-        jRadioButton2.setText("Single");
+        buttonGroupSingleMulti.add(jRadioButtonSingle);
+        jRadioButtonSingle.setSelected(true);
+        jRadioButtonSingle.setText("Single");
 
-        buttonGroupSingleMulti.add(jRadioButton3);
-        jRadioButton3.setText("Multi");
+        buttonGroupSingleMulti.add(jRadioButtonMulti);
+        jRadioButtonMulti.setText("Multi");
 
         jLabel2.setText("Object count:");
 
@@ -63,60 +102,127 @@ public class JDialogAddScript extends javax.swing.JDialog {
 
         jComboBox1.setModel(new javax.swing.DefaultComboBoxModel(new String[] { "Table", "View", "Package", "Type", "Mixed" }));
 
-        jButton1.setText("Add");
+        jButton1.setText("Ok");
+        jButton1.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                jButton1ActionPerformed(evt);
+            }
+        });
+
+        jButton2.setText("Cancel");
+
+        jTextArea1.setColumns(20);
+        jTextArea1.setRows(5);
+        jTextArea1.setToolTipText("Paste your code here");
+        jScrollPane1.setViewportView(jTextArea1);
+
+        jLabel4.setText("Object name:");
+
+        jTextObjectName.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                jTextObjectNameActionPerformed(evt);
+            }
+        });
+
+        jLabel5.setText("Filename");
 
         javax.swing.GroupLayout layout = new javax.swing.GroupLayout(getContentPane());
         getContentPane().setLayout(layout);
         layout.setHorizontalGroup(
             layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
             .addGroup(layout.createSequentialGroup()
+                .addContainerGap()
                 .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                    .addGroup(javax.swing.GroupLayout.Alignment.TRAILING, layout.createSequentialGroup()
+                        .addComponent(jButton1)
+                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                        .addComponent(jButton2))
                     .addGroup(layout.createSequentialGroup()
-                        .addContainerGap()
                         .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
                             .addComponent(jLabel1)
                             .addComponent(jLabel2)
                             .addComponent(jLabel3))
                         .addGap(18, 18, 18)
-                        .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING, false)
+                        .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
                             .addGroup(layout.createSequentialGroup()
                                 .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
                                     .addComponent(jRadioButtonDML)
-                                    .addComponent(jRadioButton2))
+                                    .addComponent(jRadioButtonSingle))
                                 .addGap(18, 18, 18)
                                 .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-                                    .addComponent(jRadioButton3)
-                                    .addComponent(jRadioButton1)))
+                                    .addComponent(jRadioButtonMulti)
+                                    .addComponent(jRadioButtonDDL))
+                                .addGap(0, 139, Short.MAX_VALUE))
                             .addComponent(jComboBox1, 0, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)))
                     .addGroup(layout.createSequentialGroup()
-                        .addGap(75, 75, 75)
-                        .addComponent(jButton1)))
-                .addContainerGap(25, Short.MAX_VALUE))
+                        .addComponent(jLabel4)
+                        .addGap(18, 18, 18)
+                        .addComponent(jTextObjectName))
+                    .addComponent(jScrollPane1, javax.swing.GroupLayout.Alignment.TRAILING)
+                    .addComponent(jTextFilename))
+                .addContainerGap())
+            .addGroup(layout.createSequentialGroup()
+                .addGap(155, 155, 155)
+                .addComponent(jLabel5)
+                .addGap(0, 0, Short.MAX_VALUE))
         );
+
+        layout.linkSize(javax.swing.SwingConstants.HORIZONTAL, new java.awt.Component[] {jButton1, jButton2});
+
         layout.setVerticalGroup(
             layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
             .addGroup(layout.createSequentialGroup()
                 .addContainerGap()
                 .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
                     .addComponent(jRadioButtonDML)
-                    .addComponent(jRadioButton1)
+                    .addComponent(jRadioButtonDDL)
                     .addComponent(jLabel1))
                 .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.UNRELATED)
                 .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
-                    .addComponent(jRadioButton2)
-                    .addComponent(jRadioButton3)
+                    .addComponent(jRadioButtonSingle)
+                    .addComponent(jRadioButtonMulti)
                     .addComponent(jLabel2))
                 .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.UNRELATED)
                 .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
                     .addComponent(jLabel3)
                     .addComponent(jComboBox1, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE))
                 .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.UNRELATED)
-                .addComponent(jButton1)
-                .addContainerGap(javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))
+                .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
+                    .addComponent(jLabel4, javax.swing.GroupLayout.PREFERRED_SIZE, 14, javax.swing.GroupLayout.PREFERRED_SIZE)
+                    .addComponent(jTextObjectName, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE))
+                .addGap(11, 11, 11)
+                .addComponent(jLabel5)
+                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                .addComponent(jTextFilename, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                .addGap(18, 18, Short.MAX_VALUE)
+                .addComponent(jScrollPane1, javax.swing.GroupLayout.PREFERRED_SIZE, 183, javax.swing.GroupLayout.PREFERRED_SIZE)
+                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
+                    .addComponent(jButton2)
+                    .addComponent(jButton1))
+                .addContainerGap())
         );
 
         pack();
     }// </editor-fold>//GEN-END:initComponents
+
+    private void jRadioButtonDMLActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jRadioButtonDMLActionPerformed
+        DeriveFilename();
+    }//GEN-LAST:event_jRadioButtonDMLActionPerformed
+
+    private void jRadioButtonDDLActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jRadioButtonDDLActionPerformed
+        DeriveFilename();
+    }//GEN-LAST:event_jRadioButtonDDLActionPerformed
+
+    private void jTextObjectNameActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jTextObjectNameActionPerformed
+        DeriveFilename();
+    }//GEN-LAST:event_jTextObjectNameActionPerformed
+
+    private void jButton1ActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jButton1ActionPerformed
+        bSuccess = true;
+        sScriptName = jTextFilename.getText();
+        dispose();
+    }//GEN-LAST:event_jButton1ActionPerformed
 
     /**
      * @param args the command line arguments
@@ -164,13 +270,20 @@ public class JDialogAddScript extends javax.swing.JDialog {
     private javax.swing.ButtonGroup buttonGroupScriptType;
     private javax.swing.ButtonGroup buttonGroupSingleMulti;
     private javax.swing.JButton jButton1;
+    private javax.swing.JButton jButton2;
     private javax.swing.JComboBox jComboBox1;
     private javax.swing.JLabel jLabel1;
     private javax.swing.JLabel jLabel2;
     private javax.swing.JLabel jLabel3;
-    private javax.swing.JRadioButton jRadioButton1;
-    private javax.swing.JRadioButton jRadioButton2;
-    private javax.swing.JRadioButton jRadioButton3;
+    private javax.swing.JLabel jLabel4;
+    private javax.swing.JLabel jLabel5;
+    private javax.swing.JRadioButton jRadioButtonDDL;
     private javax.swing.JRadioButton jRadioButtonDML;
+    private javax.swing.JRadioButton jRadioButtonMulti;
+    private javax.swing.JRadioButton jRadioButtonSingle;
+    private javax.swing.JScrollPane jScrollPane1;
+    private javax.swing.JTextArea jTextArea1;
+    private javax.swing.JTextField jTextFilename;
+    private javax.swing.JTextField jTextObjectName;
     // End of variables declaration//GEN-END:variables
 }

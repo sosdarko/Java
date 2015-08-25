@@ -16,6 +16,7 @@ import java.util.ArrayList;
 public class DBRelease implements Serializable {
     String sTfsAlterBranch;
     File sReleaseFolder;
+    String sReleaseNumber;
     ArrayList<File> sReleaseFiles;
     String sMainName;
 
@@ -79,6 +80,14 @@ public class DBRelease implements Serializable {
 
     public void setTfsAlterBranch(String sTfsAlterBranch) {
         this.sTfsAlterBranch = sTfsAlterBranch;
+    }
+
+    public String getReleaseNumber() {
+        return sReleaseNumber;
+    }
+
+    public void setReleaseNumber(String sReleaseNumber) {
+        this.sReleaseNumber = sReleaseNumber;
     }
 
 }

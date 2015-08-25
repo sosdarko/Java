@@ -6,14 +6,17 @@
 package main;
 
 import java.awt.event.KeyEvent;
+import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.util.Calendar;
+import javax.swing.DefaultListModel;
 import javax.swing.JFileChooser;
 import javax.swing.JOptionPane;
+import javax.swing.ListModel;
 import javax.swing.filechooser.FileFilter;
 import javax.swing.filechooser.FileNameExtensionFilter;
 
@@ -31,6 +34,8 @@ public class MainJFrame extends javax.swing.JFrame {
     String sMain = "";
     String sFinID = "xxxx.xx";
     String sReleaseNumber = "xxxx.xx.xx.XX";
+
+    ListModel scriptListModel = new DefaultListModel();
 
     /**
      * Creates new form MainJFrame
@@ -93,7 +98,7 @@ public class MainJFrame extends javax.swing.JFrame {
                 fis.close();
             }
             catch(IOException ioe) {
-                 System.out.println("File appdata.txt not found");
+                 System.out.println("File not found");
             }
             catch(ClassNotFoundException cnfe) {
                  System.out.println("Class not found");
@@ -125,6 +130,11 @@ public class MainJFrame extends javax.swing.JFrame {
        }
     }
 
+    void ShowRelease()
+    {
+        jTextFieldReleaseNumber.setText(release.getReleaseNumber());
+    }
+    
     void DeriveReleaseText()
     {
         sMain = "main_" + sReleaseNumber + ".sql";
@@ -141,9 +151,15 @@ public class MainJFrame extends javax.swing.JFrame {
     void AddScript()
     {
         JDialogAddScript addscr = new JDialogAddScript(this, true);
-        
+
         addscr.setLocationRelativeTo(this);
         addscr.setVisible(true);
+
+        if (addscr.bSuccess) {
+            String s = addscr.sScriptName;
+            File f = new File("/scripts/" + s);
+            ;
+        }
     }
     
     /**
@@ -175,6 +191,8 @@ public class MainJFrame extends javax.swing.JFrame {
         jButtonSaveRelease = new javax.swing.JButton();
         jButtonAddFile = new javax.swing.JButton();
         jButtonRemoveFile = new javax.swing.JButton();
+        jButtonFileUp = new javax.swing.JButton();
+        jButtonFileDown = new javax.swing.JButton();
         jMenuBar1 = new javax.swing.JMenuBar();
         jMenu1 = new javax.swing.JMenu();
         jMenu2 = new javax.swing.JMenu();
@@ -183,6 +201,7 @@ public class MainJFrame extends javax.swing.JFrame {
         setDefaultCloseOperation(javax.swing.WindowConstants.EXIT_ON_CLOSE);
         setTitle("Release Maker");
         setLocationByPlatform(true);
+        setResizable(false);
 
         jTextFieldYear.setHorizontalAlignment(javax.swing.JTextField.RIGHT);
         jTextFieldYear.addActionListener(new java.awt.event.ActionListener() {
@@ -223,10 +242,11 @@ public class MainJFrame extends javax.swing.JFrame {
 
         jListFiles.setFont(new java.awt.Font("Consolas", 0, 12)); // NOI18N
         jListFiles.setModel(new javax.swing.AbstractListModel() {
-            String[] strings = { "Item 1", "Item 2", "Item 3", "Item 4", "Item 5" };
+            String[] strings = { "Item 1", " " };
             public int getSize() { return strings.length; }
             public Object getElementAt(int i) { return strings[i]; }
         });
+        jListFiles.setSelectionMode(javax.swing.ListSelectionModel.SINGLE_SELECTION);
         jListFiles.addKeyListener(new java.awt.event.KeyAdapter() {
             public void keyTyped(java.awt.event.KeyEvent evt) {
                 jListFilesKeyTyped(evt);
@@ -257,14 +277,31 @@ public class MainJFrame extends javax.swing.JFrame {
             }
         });
 
-        jButtonAddFile.setText("Add");
+        jButtonAddFile.setBackground(new java.awt.Color(153, 255, 153));
+        jButtonAddFile.setText("+");
         jButtonAddFile.addActionListener(new java.awt.event.ActionListener() {
             public void actionPerformed(java.awt.event.ActionEvent evt) {
                 jButtonAddFileActionPerformed(evt);
             }
         });
 
-        jButtonRemoveFile.setText("Remove");
+        jButtonRemoveFile.setBackground(new java.awt.Color(255, 153, 153));
+        jButtonRemoveFile.setText("-");
+        jButtonRemoveFile.setActionCommand("Remove");
+
+        jButtonFileUp.setText("Up");
+        jButtonFileUp.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                jButtonFileUpActionPerformed(evt);
+            }
+        });
+
+        jButtonFileDown.setText("Dw");
+        jButtonFileDown.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                jButtonFileDownActionPerformed(evt);
+            }
+        });
 
         jMenu1.setText("File");
         jMenuBar1.add(jMenu1);
@@ -290,14 +327,9 @@ public class MainJFrame extends javax.swing.JFrame {
             .addGroup(layout.createSequentialGroup()
                 .addContainerGap()
                 .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-                    .addComponent(jTextFieldDescription)
-                    .addComponent(jTextFieldMain)
-                    .addComponent(jTextFieldBranchName)
-                    .addComponent(jScrollPane1)
                     .addGroup(layout.createSequentialGroup()
-                        .addComponent(jLabel6)
-                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
-                        .addComponent(jButtonCreateReleaseFolder))
+                        .addComponent(jTextFieldMain)
+                        .addContainerGap())
                     .addGroup(layout.createSequentialGroup()
                         .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
                             .addComponent(jTextFieldYear, javax.swing.GroupLayout.PREFERRED_SIZE, 53, javax.swing.GroupLayout.PREFERRED_SIZE)
@@ -310,22 +342,34 @@ public class MainJFrame extends javax.swing.JFrame {
                         .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
                             .addComponent(jLabel3)
                             .addComponent(jTextFieldReleaseNumber, javax.swing.GroupLayout.PREFERRED_SIZE, 120, javax.swing.GroupLayout.PREFERRED_SIZE))
-                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED, 77, Short.MAX_VALUE)
+                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
                         .addComponent(jButtonLoadRelease)
                         .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                        .addComponent(jButtonSaveRelease))
+                        .addComponent(jButtonSaveRelease)
+                        .addGap(45, 45, 45))
                     .addGroup(layout.createSequentialGroup()
                         .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-                            .addComponent(jLabel5)
-                            .addComponent(jLabel4))
-                        .addGap(0, 0, Short.MAX_VALUE))
-                    .addGroup(layout.createSequentialGroup()
-                        .addComponent(jLabel7)
-                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
-                        .addComponent(jButtonAddFile)
-                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                        .addComponent(jButtonRemoveFile)))
-                .addContainerGap())
+                            .addGroup(layout.createSequentialGroup()
+                                .addComponent(jScrollPane1)
+                                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.UNRELATED)
+                                .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING, false)
+                                    .addComponent(jButtonFileUp, javax.swing.GroupLayout.Alignment.TRAILING, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                                    .addComponent(jButtonAddFile, javax.swing.GroupLayout.Alignment.TRAILING, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                                    .addComponent(jButtonRemoveFile, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                                    .addComponent(jButtonFileDown)))
+                            .addGroup(layout.createSequentialGroup()
+                                .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING, false)
+                                    .addComponent(jLabel7)
+                                    .addComponent(jLabel5)
+                                    .addComponent(jLabel4)
+                                    .addComponent(jTextFieldBranchName)
+                                    .addGroup(layout.createSequentialGroup()
+                                        .addComponent(jLabel6)
+                                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED, 350, Short.MAX_VALUE)
+                                        .addComponent(jButtonCreateReleaseFolder))
+                                    .addComponent(jTextFieldDescription))
+                                .addGap(0, 0, Short.MAX_VALUE)))
+                        .addContainerGap())))
         );
         layout.setVerticalGroup(
             layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
@@ -353,19 +397,25 @@ public class MainJFrame extends javax.swing.JFrame {
                 .addComponent(jLabel5)
                 .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
                 .addComponent(jTextFieldMain, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
-                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.UNRELATED)
-                .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.TRAILING)
-                    .addComponent(jButtonCreateReleaseFolder)
-                    .addComponent(jLabel6))
+                .addGap(16, 16, 16)
+                .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
+                    .addComponent(jLabel6)
+                    .addComponent(jButtonCreateReleaseFolder))
                 .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
                 .addComponent(jTextFieldBranchName, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
                 .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.UNRELATED)
-                .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
-                    .addComponent(jLabel7)
-                    .addComponent(jButtonAddFile)
-                    .addComponent(jButtonRemoveFile))
-                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
-                .addComponent(jScrollPane1, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                .addComponent(jLabel7)
+                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED, 10, Short.MAX_VALUE)
+                .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                    .addGroup(layout.createSequentialGroup()
+                        .addComponent(jButtonAddFile)
+                        .addGap(18, 18, 18)
+                        .addComponent(jButtonFileUp)
+                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                        .addComponent(jButtonFileDown)
+                        .addGap(22, 22, 22)
+                        .addComponent(jButtonRemoveFile))
+                    .addComponent(jScrollPane1, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE))
                 .addContainerGap())
         );
 
@@ -432,6 +482,14 @@ public class MainJFrame extends javax.swing.JFrame {
         AddScript();
     }//GEN-LAST:event_jButtonAddFileActionPerformed
 
+    private void jButtonFileUpActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jButtonFileUpActionPerformed
+        // TODO add your handling code here:
+    }//GEN-LAST:event_jButtonFileUpActionPerformed
+
+    private void jButtonFileDownActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jButtonFileDownActionPerformed
+        // TODO add your handling code here:
+    }//GEN-LAST:event_jButtonFileDownActionPerformed
+
     /**
      * @param args the command line arguments
      */
@@ -466,6 +524,8 @@ public class MainJFrame extends javax.swing.JFrame {
     // Variables declaration - do not modify//GEN-BEGIN:variables
     private javax.swing.JButton jButtonAddFile;
     private javax.swing.JButton jButtonCreateReleaseFolder;
+    private javax.swing.JButton jButtonFileDown;
+    private javax.swing.JButton jButtonFileUp;
     private javax.swing.JButton jButtonLoadRelease;
     private javax.swing.JButton jButtonRemoveFile;
     private javax.swing.JButton jButtonSaveRelease;
