@@ -8,6 +8,7 @@ package main;
 import java.io.File;
 import java.io.Serializable;
 import java.util.ArrayList;
+import java.util.Collections;
 
 /**
  *
@@ -17,12 +18,17 @@ public class DBRelease implements Serializable {
     String sTfsAlterBranch;
     File sReleaseFolder;
     String sReleaseNumber;
-    ArrayList<File> sReleaseFiles;
+    ArrayList<File> aReleaseFiles;
+    ArrayList<Script> aReleaseScripts;
     String sMainName;
+    String sFinbetRelNo;
+    String sDescription;
+    static final long serialVersionUID = 8290017792446170202L;
 
     public DBRelease()
     {
-        sReleaseFiles = new ArrayList<>();
+        aReleaseFiles = new ArrayList<>();
+        aReleaseScripts = new ArrayList<>();
     }
     
     @Override
@@ -42,12 +48,63 @@ public class DBRelease implements Serializable {
 
     void AddFile(String name)
     {
-        sReleaseFiles.add(new File(sReleaseFolder, name));
+        aReleaseFiles.add(new File(sReleaseFolder, name));
+    }
+    
+    void AddFile(File f)
+    {
+        aReleaseFiles.add(f);
     }
 
     void RemoveFile(String name)
     {
-        sReleaseFiles.remove(new File(sReleaseFolder, name));
+        aReleaseFiles.remove(new File(sReleaseFolder, name));
+    }
+
+    void AddScript(Script s)
+    {
+        aReleaseScripts.add(s);
+    }
+
+    void SwapScripts(int i, int j)
+    {
+        Collections.swap(aReleaseScripts, i, j);
+    }
+    
+    boolean RemoveScript(String scriptName)
+    {
+        boolean found = false;
+        if (aReleaseScripts != null && aReleaseScripts.size() > 0) {
+            int index = 0;
+            String s = aReleaseScripts.get(index).getName();
+            while (index < aReleaseScripts.size()) {
+                if (aReleaseScripts.get(index).getName().equals(scriptName)) {
+                    aReleaseFiles.remove(index);
+                    found = true;
+                    break;
+                }
+            }
+        }
+        return found;
+    }
+    
+    boolean RemoveScript(Script script)
+    {
+        return aReleaseScripts.remove(script);
+    }
+    
+    boolean RemoveScript(int i)
+    {
+        boolean removed = false;
+        try {aReleaseScripts.remove(i);}
+        catch (IndexOutOfBoundsException e) {removed = false;}
+
+        return removed;
+    }
+    
+    boolean ReplaceScript(int index, Script scr)
+    {
+        return (aReleaseScripts.set(index, scr) != null);
     }
 
     public String getMainName() {
@@ -55,9 +112,13 @@ public class DBRelease implements Serializable {
     }
 
     public ArrayList<File> getReleaseFiles() {
-        return sReleaseFiles;
+        return aReleaseFiles;
     }
 
+    public ArrayList<Script> getReleaseScripts() {
+        return aReleaseScripts;
+    }
+    
     public File getReleaseFolder() {
         return sReleaseFolder;
     }
@@ -70,8 +131,8 @@ public class DBRelease implements Serializable {
         this.sMainName = sMainName;
     }
 
-    public void setReleaseFiles(ArrayList<File> sReleaseFiles) {
-        this.sReleaseFiles = sReleaseFiles;
+    public void setReleaseFiles(ArrayList<File> aReleaseFiles) {
+        this.aReleaseFiles = aReleaseFiles;
     }
 
     public void setReleaseFolder(File sReleaseFolder) {
@@ -90,4 +151,23 @@ public class DBRelease implements Serializable {
         this.sReleaseNumber = sReleaseNumber;
     }
 
+    public String getFinbetRelNo() {
+        return sFinbetRelNo;
+    }
+
+    public void setFinbetRelNo(String sFinbetRelNo) {
+        this.sFinbetRelNo = sFinbetRelNo;
+    }
+
+    public String getDescription() {
+        return sDescription;
+    }
+
+    public void setDescription(String sDescription) {
+        this.sDescription = sDescription;
+    }
+    
+    public Script getScript(int index) {
+        return aReleaseScripts.get(index);
+    }
 }

@@ -12,14 +12,28 @@ package main;
 public class JDialogAddScript extends javax.swing.JDialog {
 
     public boolean bSuccess;
-    public String sScriptName;
+    public Script scr;
     /**
      * Creates new form JDialogAddScript
+     * @param parent
+     * @param modal
      */
     public JDialogAddScript(java.awt.Frame parent, boolean modal) {
         super(parent, modal);
         initComponents();
         bSuccess = false;
+    }
+
+    public JDialogAddScript(java.awt.Frame parent, boolean modal, Script inScr) {
+        super(parent, modal);
+        initComponents();
+        bSuccess = false;
+
+        if (inScr != null) {
+            scr = inScr;
+            jTextFilename.setText(scr.getName());
+            jTextScript.setText(scr.getContent());
+        }
     }
 
     void DeriveFilename()
@@ -38,7 +52,7 @@ public class JDialogAddScript extends javax.swing.JDialog {
         
         jTextFilename.setText(s);
     }
-    
+  
     /**
      * This method is called from within the constructor to initialize the form.
      * WARNING: Do NOT modify this code. The content of this method is always
@@ -58,10 +72,10 @@ public class JDialogAddScript extends javax.swing.JDialog {
         jLabel2 = new javax.swing.JLabel();
         jLabel3 = new javax.swing.JLabel();
         jComboBox1 = new javax.swing.JComboBox();
-        jButton1 = new javax.swing.JButton();
-        jButton2 = new javax.swing.JButton();
+        jButtonOk = new javax.swing.JButton();
+        jButtonCancel = new javax.swing.JButton();
         jScrollPane1 = new javax.swing.JScrollPane();
-        jTextArea1 = new javax.swing.JTextArea();
+        jTextScript = new javax.swing.JTextArea();
         jLabel4 = new javax.swing.JLabel();
         jTextObjectName = new javax.swing.JTextField();
         jLabel5 = new javax.swing.JLabel();
@@ -102,19 +116,19 @@ public class JDialogAddScript extends javax.swing.JDialog {
 
         jComboBox1.setModel(new javax.swing.DefaultComboBoxModel(new String[] { "Table", "View", "Package", "Type", "Mixed" }));
 
-        jButton1.setText("Ok");
-        jButton1.addActionListener(new java.awt.event.ActionListener() {
+        jButtonOk.setText("Ok");
+        jButtonOk.addActionListener(new java.awt.event.ActionListener() {
             public void actionPerformed(java.awt.event.ActionEvent evt) {
-                jButton1ActionPerformed(evt);
+                jButtonOkActionPerformed(evt);
             }
         });
 
-        jButton2.setText("Cancel");
+        jButtonCancel.setText("Cancel");
 
-        jTextArea1.setColumns(20);
-        jTextArea1.setRows(5);
-        jTextArea1.setToolTipText("Paste your code here");
-        jScrollPane1.setViewportView(jTextArea1);
+        jTextScript.setColumns(20);
+        jTextScript.setRows(5);
+        jTextScript.setToolTipText("Paste your code here");
+        jScrollPane1.setViewportView(jTextScript);
 
         jLabel4.setText("Object name:");
 
@@ -134,9 +148,9 @@ public class JDialogAddScript extends javax.swing.JDialog {
                 .addContainerGap()
                 .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
                     .addGroup(javax.swing.GroupLayout.Alignment.TRAILING, layout.createSequentialGroup()
-                        .addComponent(jButton1)
+                        .addComponent(jButtonOk)
                         .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
-                        .addComponent(jButton2))
+                        .addComponent(jButtonCancel))
                     .addGroup(layout.createSequentialGroup()
                         .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
                             .addComponent(jLabel1)
@@ -167,7 +181,7 @@ public class JDialogAddScript extends javax.swing.JDialog {
                 .addGap(0, 0, Short.MAX_VALUE))
         );
 
-        layout.linkSize(javax.swing.SwingConstants.HORIZONTAL, new java.awt.Component[] {jButton1, jButton2});
+        layout.linkSize(javax.swing.SwingConstants.HORIZONTAL, new java.awt.Component[] {jButtonCancel, jButtonOk});
 
         layout.setVerticalGroup(
             layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
@@ -198,8 +212,8 @@ public class JDialogAddScript extends javax.swing.JDialog {
                 .addComponent(jScrollPane1, javax.swing.GroupLayout.PREFERRED_SIZE, 183, javax.swing.GroupLayout.PREFERRED_SIZE)
                 .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
                 .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
-                    .addComponent(jButton2)
-                    .addComponent(jButton1))
+                    .addComponent(jButtonCancel)
+                    .addComponent(jButtonOk))
                 .addContainerGap())
         );
 
@@ -218,11 +232,12 @@ public class JDialogAddScript extends javax.swing.JDialog {
         DeriveFilename();
     }//GEN-LAST:event_jTextObjectNameActionPerformed
 
-    private void jButton1ActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jButton1ActionPerformed
+    private void jButtonOkActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jButtonOkActionPerformed
         bSuccess = true;
-        sScriptName = jTextFilename.getText();
+        scr.setName(jTextFilename.getText());
+        scr.setContent(jTextScript.getText());
         dispose();
-    }//GEN-LAST:event_jButton1ActionPerformed
+    }//GEN-LAST:event_jButtonOkActionPerformed
 
     /**
      * @param args the command line arguments
@@ -269,8 +284,8 @@ public class JDialogAddScript extends javax.swing.JDialog {
     // Variables declaration - do not modify//GEN-BEGIN:variables
     private javax.swing.ButtonGroup buttonGroupScriptType;
     private javax.swing.ButtonGroup buttonGroupSingleMulti;
-    private javax.swing.JButton jButton1;
-    private javax.swing.JButton jButton2;
+    private javax.swing.JButton jButtonCancel;
+    private javax.swing.JButton jButtonOk;
     private javax.swing.JComboBox jComboBox1;
     private javax.swing.JLabel jLabel1;
     private javax.swing.JLabel jLabel2;
@@ -282,8 +297,8 @@ public class JDialogAddScript extends javax.swing.JDialog {
     private javax.swing.JRadioButton jRadioButtonMulti;
     private javax.swing.JRadioButton jRadioButtonSingle;
     private javax.swing.JScrollPane jScrollPane1;
-    private javax.swing.JTextArea jTextArea1;
     private javax.swing.JTextField jTextFilename;
     private javax.swing.JTextField jTextObjectName;
+    private javax.swing.JTextArea jTextScript;
     // End of variables declaration//GEN-END:variables
 }
