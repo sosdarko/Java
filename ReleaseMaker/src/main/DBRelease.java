@@ -23,7 +23,8 @@ public class DBRelease implements Serializable {
     String sMainName;
     String sFinbetRelNo;
     String sDescription;
-    static final long serialVersionUID = 8290017792446170202L;
+    //
+    static final long serialVersionUID = 1L;
 
     public DBRelease()
     {

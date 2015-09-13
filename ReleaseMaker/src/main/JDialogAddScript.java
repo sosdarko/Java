@@ -22,6 +22,7 @@ public class JDialogAddScript extends javax.swing.JDialog {
         super(parent, modal);
         initComponents();
         bSuccess = false;
+        scr = new Script();
     }
 
     public JDialogAddScript(java.awt.Frame parent, boolean modal, Script inScr) {
@@ -33,6 +34,17 @@ public class JDialogAddScript extends javax.swing.JDialog {
             scr = inScr;
             jTextFilename.setText(scr.getName());
             jTextScript.setText(scr.getContent());
+            switch(scr.getType()) {
+                case "DDL":
+                    jRadioButtonDDL.setSelected(true);
+                    break;
+                case "DML":
+                    jRadioButtonDML.setSelected(true);
+                    break;
+                default:
+                    jRadioButtonOther.setSelected(true);
+            }
+            jTextObjectName.setText(scr.getDBObjectName());
         }
     }
 
@@ -64,6 +76,7 @@ public class JDialogAddScript extends javax.swing.JDialog {
 
         buttonGroupScriptType = new javax.swing.ButtonGroup();
         buttonGroupSingleMulti = new javax.swing.ButtonGroup();
+        jRadioButtonOther = new javax.swing.JRadioButton();
         jRadioButtonDML = new javax.swing.JRadioButton();
         jRadioButtonDDL = new javax.swing.JRadioButton();
         jLabel1 = new javax.swing.JLabel();
@@ -84,8 +97,16 @@ public class JDialogAddScript extends javax.swing.JDialog {
         setDefaultCloseOperation(javax.swing.WindowConstants.DISPOSE_ON_CLOSE);
         setTitle("Add script");
 
+        buttonGroupScriptType.add(jRadioButtonOther);
+        jRadioButtonOther.setSelected(true);
+        jRadioButtonOther.setText("Other");
+        jRadioButtonOther.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                jRadioButtonOtherActionPerformed(evt);
+            }
+        });
+
         buttonGroupScriptType.add(jRadioButtonDML);
-        jRadioButtonDML.setSelected(true);
         jRadioButtonDML.setText("DML");
         jRadioButtonDML.addActionListener(new java.awt.event.ActionListener() {
             public void actionPerformed(java.awt.event.ActionEvent evt) {
@@ -124,6 +145,11 @@ public class JDialogAddScript extends javax.swing.JDialog {
         });
 
         jButtonCancel.setText("Cancel");
+        jButtonCancel.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                jButtonCancelActionPerformed(evt);
+            }
+        });
 
         jTextScript.setColumns(20);
         jTextScript.setRows(5);
@@ -156,18 +182,23 @@ public class JDialogAddScript extends javax.swing.JDialog {
                             .addComponent(jLabel1)
                             .addComponent(jLabel2)
                             .addComponent(jLabel3))
-                        .addGap(18, 18, 18)
                         .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
                             .addGroup(layout.createSequentialGroup()
-                                .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-                                    .addComponent(jRadioButtonDML)
-                                    .addComponent(jRadioButtonSingle))
                                 .addGap(18, 18, 18)
                                 .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-                                    .addComponent(jRadioButtonMulti)
-                                    .addComponent(jRadioButtonDDL))
-                                .addGap(0, 139, Short.MAX_VALUE))
-                            .addComponent(jComboBox1, 0, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)))
+                                    .addComponent(jRadioButtonOther)
+                                    .addComponent(jRadioButtonSingle))
+                                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.UNRELATED)
+                                .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                                    .addGroup(layout.createSequentialGroup()
+                                        .addComponent(jRadioButtonDML)
+                                        .addGap(18, 18, 18)
+                                        .addComponent(jRadioButtonDDL))
+                                    .addComponent(jRadioButtonMulti))
+                                .addGap(0, 94, Short.MAX_VALUE))
+                            .addGroup(layout.createSequentialGroup()
+                                .addGap(17, 17, 17)
+                                .addComponent(jComboBox1, 0, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))))
                     .addGroup(layout.createSequentialGroup()
                         .addComponent(jLabel4)
                         .addGap(18, 18, 18)
@@ -190,7 +221,8 @@ public class JDialogAddScript extends javax.swing.JDialog {
                 .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
                     .addComponent(jRadioButtonDML)
                     .addComponent(jRadioButtonDDL)
-                    .addComponent(jLabel1))
+                    .addComponent(jLabel1)
+                    .addComponent(jRadioButtonOther))
                 .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.UNRELATED)
                 .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
                     .addComponent(jRadioButtonSingle)
@@ -221,10 +253,12 @@ public class JDialogAddScript extends javax.swing.JDialog {
     }// </editor-fold>//GEN-END:initComponents
 
     private void jRadioButtonDMLActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jRadioButtonDMLActionPerformed
+        scr.setType("DML");
         DeriveFilename();
     }//GEN-LAST:event_jRadioButtonDMLActionPerformed
 
     private void jRadioButtonDDLActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jRadioButtonDDLActionPerformed
+        scr.setType("DDL");
         DeriveFilename();
     }//GEN-LAST:event_jRadioButtonDDLActionPerformed
 
@@ -232,12 +266,24 @@ public class JDialogAddScript extends javax.swing.JDialog {
         DeriveFilename();
     }//GEN-LAST:event_jTextObjectNameActionPerformed
 
+    // OK
     private void jButtonOkActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jButtonOkActionPerformed
         bSuccess = true;
         scr.setName(jTextFilename.getText());
         scr.setContent(jTextScript.getText());
+        scr.setDBObjectName(jTextObjectName.getText());
         dispose();
     }//GEN-LAST:event_jButtonOkActionPerformed
+    // CANCEL
+    private void jButtonCancelActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jButtonCancelActionPerformed
+        bSuccess = false;
+        dispose();
+    }//GEN-LAST:event_jButtonCancelActionPerformed
+
+    private void jRadioButtonOtherActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jRadioButtonOtherActionPerformed
+        scr.setType("");
+        DeriveFilename();
+    }//GEN-LAST:event_jRadioButtonOtherActionPerformed
 
     /**
      * @param args the command line arguments
@@ -295,6 +341,7 @@ public class JDialogAddScript extends javax.swing.JDialog {
     private javax.swing.JRadioButton jRadioButtonDDL;
     private javax.swing.JRadioButton jRadioButtonDML;
     private javax.swing.JRadioButton jRadioButtonMulti;
+    private javax.swing.JRadioButton jRadioButtonOther;
     private javax.swing.JRadioButton jRadioButtonSingle;
     private javax.swing.JScrollPane jScrollPane1;
     private javax.swing.JTextField jTextFilename;

@@ -11,9 +11,12 @@ import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
+import java.io.FileReader;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
+import java.io.Reader;
 import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.nio.file.Paths;
@@ -31,7 +34,7 @@ import javax.swing.filechooser.FileNameExtensionFilter;
  *
  * @author darko.sos
  */
-public class MainJFrame extends javax.swing.JFrame {
+public final class MainJFrame extends javax.swing.JFrame {
 
     AppData appData = new AppData();
     DBRelease release = new DBRelease();
@@ -53,6 +56,9 @@ public class MainJFrame extends javax.swing.JFrame {
         jTextFieldYear.setText(String.format("%d", year));
         LoadAppData();
         getContentPane().setBackground(new Color(162, 191, 133));
+        jTextFieldFinID.setText(sFinID);
+        jTextFieldReleaseNumber.setText(sReleaseNumber);
+        DeriveReleaseText();
     }
 
     void UpdateListModel()
@@ -231,7 +237,7 @@ public class MainJFrame extends javax.swing.JFrame {
         addscr.setVisible(true);
 
         if (addscr.bSuccess) {
-            Script script = new Script(addscr.scr.getName(), addscr.scr.getContent());
+            Script script = new Script(addscr.scr);
             release.AddScript(script);
             scriptListModel.addElement(script);
         }
@@ -296,7 +302,9 @@ public class MainJFrame extends javax.swing.JFrame {
     {
         BufferedReader reader;
         try {
-            reader = Files.newBufferedReader(Paths.get("main_template.sql"));
+            reader = new BufferedReader(new FileReader("main_template.sql"));
+            // for version 1.8
+            //reader = Files.newBufferedReader(Paths.get("main_template.sql"));
         }
         catch(IOException ioe) {
             System.out.println("File main_template.sql not found");
@@ -306,7 +314,8 @@ public class MainJFrame extends javax.swing.JFrame {
 
         BufferedWriter writer;
         try {
-            writer = Files.newBufferedWriter(Paths.get(sMain));
+            writer  = new BufferedWriter(new FileWriter(sMain));
+            //writer = Files.newBufferedWriter(Paths.get(sMain));
         }
         catch(IOException ioe) {
             System.out.println("Could not create main file");
@@ -451,6 +460,11 @@ public class MainJFrame extends javax.swing.JFrame {
         jListFiles.setFont(new java.awt.Font("Consolas", 0, 12)); // NOI18N
         jListFiles.setModel(scriptListModel);
         jListFiles.setSelectionMode(javax.swing.ListSelectionModel.SINGLE_SELECTION);
+        jListFiles.addMouseListener(new java.awt.event.MouseAdapter() {
+            public void mouseClicked(java.awt.event.MouseEvent evt) {
+                jListFilesMouseClicked(evt);
+            }
+        });
         jListFiles.addKeyListener(new java.awt.event.KeyAdapter() {
             public void keyTyped(java.awt.event.KeyEvent evt) {
                 jListFilesKeyTyped(evt);
@@ -767,6 +781,14 @@ public class MainJFrame extends javax.swing.JFrame {
     private void jButton1ActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jButton1ActionPerformed
         CreateMain();
     }//GEN-LAST:event_jButton1ActionPerformed
+
+    private void jListFilesMouseClicked(java.awt.event.MouseEvent evt) {//GEN-FIRST:event_jListFilesMouseClicked
+        if (evt.getClickCount() == 2) {
+            int i = jListFiles.getSelectedIndex();
+            if (i>=0)
+                EditScript(i);
+        }
+    }//GEN-LAST:event_jListFilesMouseClicked
 
     /**
      * @param args the command line arguments
