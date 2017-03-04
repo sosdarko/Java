@@ -1,0 +1,2015 @@
+PACKAGE BODY      NPFEPayBackendAPI AS
+
+
+
+PROCEDURE GetCardPaymentDetails (
+    pvServerPathName            IN   VARCHAR2,
+    pvWebRequestID              IN   VARCHAR2,
+    pvIDDCSession               IN   VARCHAR2,
+    pvDeviceType                IN   VARCHAR2,
+    pnWebsiteID                 IN   NUMBER,
+    pnIDFOAccount               IN   NUMBER,
+    pnIDFOTransactionPW         OUT  NUMBER,
+    pvIDMMPaymentMethodPW       OUT  VARCHAR2,
+    pvPWPaymentMethodDesc       OUT  VARCHAR2,
+    pnAmountPW                  OUT  NUMBER,
+    pvIDCurrencyPW              OUT  VARCHAR2,
+    pnDepositAmount1            OUT  NUMBER,
+    pnDepositAmount2            OUT  NUMBER,
+    pnDepositAmount3            OUT  NUMBER,
+    pnPersonalDepositLimit      OUT  NUMBER,
+    pnIsReachedLimitRemoveText  OUT  NUMBER,
+    pvRedirectionURL            OUT  VARCHAR2,
+    pvBinList                   OUT  VARCHAR2,
+    pnTimezoneOffset            OUT  NUMBER,
+    pnShowPersonalLimitLink     OUT  NUMBER,
+    pnShowCancelWithdrawal      OUT  NUMBER,
+    pnResponseCode              OUT  NUMBER,
+    pvInternalResponseMessage   OUT  VARCHAR2,
+    pvResponseMessage           OUT  VARCHAR2)
+IS
+  lnIDUDBA NUMBER;
+  lnIDCustomer NUMBER;
+  lnIDMMPartner NUMBER;
+  lvIDCurrency VARCHAR2(10);
+  lvIDFOLanguage     VARCHAR2(10);
+  lvTextSize         VARCHAR2(5);
+  eProcessingError exception;
+  lnWithdrawalForCancel number;
+BEGIN
+  pnResponseCode              := 0;
+  pvInternalResponseMessage   := NULL;
+  pvResponseMessage           := NULL;
+
+  udbash.LogEntry(
+    lnIDUDBA, 0,
+    'NPFE', 
+    'DB', 
+    'NPFE.NPFEPayBackendAPI.GetCardPaymentDetails:IN', 
+    0, 
+    ';PVSERVERPATHNAME:'||PVSERVERPATHNAME  ||';PVWEBREQUESTID:'||PVWEBREQUESTID
+    ||';PVIDDCSESSION:'||PVIDDCSESSION
+    ||';PVDEVICETYPE:'||PVDEVICETYPE
+    ||';PNWEBSITEID:'||PNWEBSITEID
+    ||';PNIDFOACCOUNT:'||PNIDFOACCOUNT
+    ,NULL, 
+    NULL 
+  );
+
+  begin
+    select idcustomer, idmmpartner, PREFERREDCURRENCY
+    into lnIDCustomer, lnIDMMPartner, lvIDCurrency
+    from FO.FOSBWEBCUSTOMER_PV
+    where idfoaccount = pnIDFOAccount;
+  exception
+    when others then
+      pnResponseCode := 65100001;
+      pvInternalResponseMessage := 'NPFE.NPFEPayBackendAPI.GetCardPaymentDetails: error selecting from FO.FOSBWEBCUSTOMER_PV with IDFOAccount='||to_char(pnIDFOAccount)||':'||sqlerrm;
+      pvResponseMessage := 'Internal error (65100001)';
+      raise eProcessingError;
+  end;
+  
+  begin
+    select idfolanguage
+    into lvIDFOLanguage
+    from mmas.mmwebsite
+    where idmmwebsite = pnWebsiteID;
+  end;
+  
+  lvTextSize := NPFESITEDATA.GETTEXTSIZE(pvDeviceType);
+  
+  BEGIN
+    SELECT
+      WR.IDFOTRANSACTION, WR.IDMMPAYMENTMETHOD,
+      WR.AMOUNT + WR.AMOUNTCHARGES, WR.IDCURRENCY
+    INTO
+      pnIDFOTransactionPW, pvIDMMPaymentMethodPW,
+      pnAmountPW, pvIDCurrencyPW
+    FROM FO.FOWITHDRAWALREQUEST_PV WR
+    WHERE
+      WR.IDFOACCOUNT = pnIDFOAccount and
+      
+     (wr.TXSTATE = 'H' or (wr.TXSTATE = 'C' and wr.custom1 is null) or (wr.TXSTATE = 'C' and wr.custom1 is not null and nvl(wr.custom1description,'N/A') != 'IDPSTransactionRG')) AND 
+      WR.CREATEDTS = (
+        SELECT max(CREATEDTS)
+        FROM FO.FOWITHDRAWALREQUEST_PV
+        WHERE
+          IDFOACCOUNT = pnIDFOAccount and
+          
+       (TXSTATE = 'H' or (TXSTATE = 'C' and custom1 is null) or (TXSTATE = 'C' and custom1 is not null and nvl(custom1description,'N/A') != 'IDPSTransactionRG'))
+      );
+  EXCEPTION
+    WHEN NO_DATA_FOUND THEN  
+      pnIDFOTransactionPW := null;
+      pvIDMMPaymentMethodPW := null;
+      pnAmountPW := null;
+      pvIDCurrencyPW := null;
+      pnResponseCode := 0;
+      pvInternalResponseMessage := '';
+      pvResponseMessage := '';
+  END;
+  
+  if pvIDMMPaymentMethodPW is not null then
+    begin
+      pvPWPaymentMethodDesc := FOTRAN.FOTABLETRANSLATIONAPI.GETSINGLETRANSLATION('PAYMENTMETHOD',lvIDFOLanguage,lvTextSize,pvIDMMPaymentMethodPW);
+    exception
+      when others then
+        select trim(replace(description, 'MM1', ''))
+        into pvPWPaymentMethodDesc
+        from MMAS.MMPAYMENTMETHOD
+        where idmmpaymentmethod = pvIDMMPaymentMethodPW;
+    end;
+  end if;
+  
+  begin
+    pnPersonalDepositLimit :=
+      floor(NPFE.NPFEPAYBACKENDAPI.GETPERSONALDEPOSITLIMIT(lnIDCustomer, pnIDFOAccount));
+  exception
+    when others then
+      pnResponseCode := 65100002;
+      pvInternalResponseMessage := 'NPFE.NPFEPayBackendAPI.GetCardPaymentDetails: error executing GETPERSONALDEPOSITLIMIT with IDCustomer='||to_char(lnIDCustomer)||', IDFOAccount='||to_char(pnIDFOAccount)||':'||sqlerrm;
+      pvResponseMessage := 'Internal error (65100002)';
+      raise eProcessingError;
+  end;
+  
+  begin
+    select isactive
+    into pnIsReachedLimitRemoveText
+    from SPIN_D.LIMITSCOPECONFIG
+    where scope = 'PARTNER'
+    and idscope = to_char(lnIDMMPartner)
+    and idlimitgroup = 'DEPOSITLIMITS';
+    
+  exception
+    when others then
+      pnIsReachedLimitRemoveText := 1;
+  end;
+  
+  begin
+    select REDIRECTIONURL
+    into pvRedirectionURL
+    from NPFE.NPFETRACKER
+    where WEBREQUESTID = pvWebRequestID;
+  exception
+    when others then
+      pvRedirectionURL := null;
+  end;
+  
+  begin
+    select cpc.AMOUNT1, cpc.AMOUNT2, cpc.AMOUNT3
+    into pnDepositAmount1, pnDepositAmount2, pnDepositAmount3
+    from MMAS.MMCURRENCYPAYMENTCONFIG cpc
+    where
+      cpc.IDMMPAYMENTMETHOD = 'CD' and
+      cpc.IDCURRENCY = lvIDCurrency;
+  exception
+    when no_data_found then
+      pnDepositAmount1 := null;
+      pnDepositAmount2 := null;
+      pnDepositAmount3 := null;
+  end;
+  
+  begin
+    select
+      (cast(from_tz(cast(sysdate as timestamp),'UTC') at time zone (tz.timezone) as date)-sysdate)*24
+    into pnTimezoneOffset
+    from mmas.mmpartner pt, mmas.mmtimezone tz
+    where
+      pt.idmmpartner = lnIDMMPartner and
+      pt.idmmtimezone = tz.idmmtimezone;
+  exception
+    when others then
+      pnTimezoneOffset := 0;
+  end;
+  
+  begin
+    pnShowPersonalLimitLink := spin_d.customerinfo.IsInScopeForUKGC (lnIDCustomer);
+  exception
+    when others then
+      pnResponseCode := 65100003;
+      pvInternalResponseMessage := 'NPFE.NPFEPayBackendAPI.GetCardPaymentDetails:Error executing spin_d.customerinfo.IsInScopeForUKGC for cutomer='||to_char(lnIDCustomer);
+      pvResponseMessage := 'Internal error (65100003)';
+      raise eProcessingError;
+  end;
+
+  
+  select count(*)
+  INTO lnWithdrawalForCancel
+  FROM fowithdrawalrequest_pv wr
+  WHERE wr.IDFOACCOUNT = pnIDFOAccount
+  AND (wr.TXSTATE = 'H' or (wr.TXSTATE = 'C' and custom1 is null) or (wr.TxState = 'C' and wr.custom1 is not null and nvl(wr.custom1description,'N/A') != 'IDPSTransactionRG') );
+  
+  
+  if lnWithdrawalForCancel > 1 then
+    pnShowCancelWithdrawal := 1;
+  else
+    pnShowCancelWithdrawal := 0;
+  end if;
+
+  
+  udbash.LogEntry(
+    lnIDUDBA, 0,
+    'NPFE', 
+    'DB', 
+    'NPFE.NPFEPayBackendAPI.GetCardPaymentDetails:OUT', 
+    0, 
+    ';PNIDFOTRANSACTIONPW:'||PNIDFOTRANSACTIONPW
+    ||';PVIDMMPAYMENTMETHODPW:'||PVIDMMPAYMENTMETHODPW
+    ||';PVPWPAYMENTMETHODDESC:'||PVPWPAYMENTMETHODDESC
+    ||';PNAMOUNTPW:'||PNAMOUNTPW
+    ||';PVIDCURRENCYPW:'||PVIDCURRENCYPW
+    ||';pnDepositAmount1:'||to_char(pnDepositAmount1)
+    ||';pnDepositAmount2:'||to_char(pnDepositAmount2)
+    ||';pnDepositAmount3:'||to_char(pnDepositAmount3)
+    ||';pnPersonalDepositLimit:'||to_char(pnPersonalDepositLimit)
+    ||';PNISREACHEDLIMITREMOVETEXT:'||PNISREACHEDLIMITREMOVETEXT
+    ||';PNRESPONSECODE:'||PNRESPONSECODE
+    ,NULL, 
+    NULL 
+  );
+
+EXCEPTION
+  WHEN eProcessingError THEN
+    FO.FOERRORHANDLER.FETCHCUSTOMERERRMSG(pnResponseCode, pvInternalResponseMessage, NULL, pvResponseMessage);
+  WHEN OTHERS THEN
+    pnResponseCode := 65100000;
+    pvInternalResponseMessage := sqlerrm||chr(10)||SYS.DBMS_UTILITY.FORMAT_ERROR_BACKTRACE();
+    pvResponseMessage := 'General error in NPFE.NPFEPayBackendAPI.GetCardPaymentDetails: ' || sqlerrm;
+    FO.FOERRORHANDLER.FETCHCUSTOMERERRMSG(pnResponseCode, pvInternalResponseMessage, NULL, pvResponseMessage);
+END GetCardPaymentDetails;
+
+
+PROCEDURE GetCardPaymentDetails (
+    pvServerPathName            IN   VARCHAR2,
+    pvWebRequestID              IN   VARCHAR2,
+    pvIDDCSession               IN   VARCHAR2,
+    pvDeviceType                IN   VARCHAR2,
+    pnWebsiteID                 IN   NUMBER,
+    pnIDFOAccount               IN   NUMBER,
+    pnIDFOTransactionPW         OUT  NUMBER,
+    pvIDMMPaymentMethodPW       OUT  VARCHAR2,
+    pvPWPaymentMethodDesc       OUT  VARCHAR2,
+    pnAmountPW                  OUT  NUMBER,
+    pvIDCurrencyPW              OUT  VARCHAR2,
+    pnDepositAmount1            OUT  NUMBER,
+    pnDepositAmount2            OUT  NUMBER,
+    pnDepositAmount3            OUT  NUMBER,
+    pnPersonalDepositLimit      OUT  NUMBER,
+    pnIsReachedLimitRemoveText  OUT  NUMBER,
+    pvRedirectionURL            OUT  VARCHAR2,
+    pvBinList                   OUT  VARCHAR2,
+    pnTimezoneOffset            OUT  NUMBER,
+    pnShowPersonalLimitLink     OUT  NUMBER,
+    pnResponseCode              OUT  NUMBER,
+    pvInternalResponseMessage   OUT  VARCHAR2,
+    pvResponseMessage           OUT  VARCHAR2)
+IS
+  lnIDUDBA           NUMBER;
+  lnIDCustomer       NUMBER;
+  lnIDMMPartner      NUMBER;
+  lvIDCurrency       VARCHAR2(10);
+  lvIDFOLanguage     VARCHAR2(10);
+  lvTextSize         VARCHAR2(5);
+  lnShowCancelWithdrawal number;
+  eProcessingError   exception;
+BEGIN
+  pnResponseCode              := 0;
+  pvInternalResponseMessage   := NULL;
+  pvResponseMessage           := NULL;
+
+  udbash.LogEntry(
+    lnIDUDBA, 0,
+    'NPFE', 
+    'DB', 
+    'NPFE.NPFEPayBackendAPI.GetCardPaymentDetails:IN', 
+    0, 
+    ';PVSERVERPATHNAME:'||PVSERVERPATHNAME  ||';PVWEBREQUESTID:'||PVWEBREQUESTID
+    ||';PVIDDCSESSION:'||PVIDDCSESSION
+    ||';PVDEVICETYPE:'||PVDEVICETYPE
+    ||';PNWEBSITEID:'||PNWEBSITEID
+    ||';PNIDFOACCOUNT:'||PNIDFOACCOUNT
+    ,NULL, 
+    NULL 
+  );
+
+ GetCardPaymentDetails (
+    pvServerPathName,
+    pvWebRequestID,
+    pvIDDCSession,
+    pvDeviceType,
+    pnWebsiteID,
+    pnIDFOAccount,
+    pnIDFOTransactionPW,
+    pvIDMMPaymentMethodPW,
+    pvPWPaymentMethodDesc,
+    pnAmountPW,
+    pvIDCurrencyPW,
+    pnDepositAmount1,
+    pnDepositAmount2,
+    pnDepositAmount3,
+    pnPersonalDepositLimit,
+    pnIsReachedLimitRemoveText,
+    pvRedirectionURL,
+    pvBinList,
+    pnTimezoneOffset,
+    pnShowPersonalLimitLink,
+    lnShowCancelWithdrawal,
+    pnResponseCode,
+    pvInternalResponseMessage,
+    pvResponseMessage);
+
+EXCEPTION
+  WHEN eProcessingError THEN
+    FO.FOERRORHANDLER.FETCHCUSTOMERERRMSG(pnResponseCode, pvInternalResponseMessage, NULL, pvResponseMessage);
+  WHEN OTHERS THEN
+    pnResponseCode := 65101000;
+    pvInternalResponseMessage := sqlerrm||chr(10)||SYS.DBMS_UTILITY.FORMAT_ERROR_BACKTRACE();
+    pvResponseMessage := 'General error in NPFE.NPFEPayBackendAPI.GetCardPaymentDetails: ' || sqlerrm;
+    FO.FOERRORHANDLER.FETCHCUSTOMERERRMSG(pnResponseCode, pvInternalResponseMessage, NULL, pvResponseMessage);
+END GetCardPaymentDetails;
+
+PROCEDURE GetPaymentDetails(
+    pvServerPathName             IN   VARCHAR2,
+    pvWebRequestID               IN   VARCHAR2,
+    pvIDDCSession                IN   VARCHAR2,
+    pvDeviceType                 IN   VARCHAR2,
+    pnWebsiteID                  IN   NUMBER,
+    pnIDFOAccount                IN   NUMBER,
+    pvPaymentMethod              IN   VARCHAR2,
+    pnIDFOTransactionPW          OUT  NUMBER,
+    pvIDMMPaymentMethodPW        OUT  VARCHAR2,
+    pnAmountPW                   OUT  NUMBER,
+    pvIDCurrencyPW               OUT  VARCHAR2,
+    pvPaymentMethodDesc          OUT  VARCHAR2,
+    pvPWPaymentMethodDesc        OUT  VARCHAR2,
+    pnShowNewAccountMessage      OUT  NUMBER,
+    pnIovationCheck              OUT  NUMBER,
+    pnIsReachedLimitRemoveText   OUT  NUMBER,
+    pnTimezoneOffset             OUT  NUMBER,
+    pnProviderScreenWidth        OUT  NUMBER,
+    pnProviderScreenHeight       OUT  NUMBER,
+    pnNPFrameWidth               OUT  NUMBER,
+    pnNPFrameHeight              OUT  NUMBER,
+    pvMerchantID                 OUT  VARCHAR2,
+    pvMerchantPassword           OUT  VARCHAR2,
+    pvActiveRoute                OUT  VARCHAR2,
+    pvRedirectionURL             OUT  VARCHAR2,
+    pnVoucherPaymentMethod       OUT  NUMBER,
+    pnAppLimitOnTxAmount         OUT  NUMBER,
+    pnAddChargesToDepositAmount  OUT  NUMBER,
+    pnFlatfee1                   OUT  NUMBER,
+    pnPercentagefee1             OUT  NUMBER,
+    pnFeeband1                   OUT  NUMBER,
+    pnFlatfee2                   OUT  NUMBER,
+    pnPercentagefee2             OUT  NUMBER,
+    pnFeeband2                   OUT  NUMBER,
+    pnFlatfee3                   OUT  NUMBER,
+    pnPercentagefee3             OUT  NUMBER,
+    pnShowPersonalLimitLink      OUT  NUMBER,
+    pnIsOfflineMethod            OUT  NUMBER,
+    pnMinPaymentAmount           OUT  NUMBER,
+    pnMaxPaymentAmount           OUT  NUMBER,
+    pnShowCancelWithdrawal       OUT  NUMBER,
+    pnResponseCode               OUT  NUMBER,
+    pvInternalResponseMessage    OUT  VARCHAR2,
+    pvResponseMessage            OUT  VARCHAR2)
+IS
+  lnIDUDBA           NUMBER;
+  lnIDPSProfile      NUMBER;
+  lnIDMMPartner      NUMBER;
+  lnIDCustomer       NUMBER;
+  lvCustomerCurrency VARCHAR2(10);
+  lvSBPIN            VARCHAR2(10);
+  lvVIPFundingBand   VARCHAR2(20);
+  lvPaymentProvider  VARCHAR2(10);
+  lvIDFOLanguage     VARCHAR2(10);
+  lvTextSize         VARCHAR2(5);
+  lnWithdrawalForCancel NUMBER;
+  
+  eProcessingError   exception;
+BEGIN
+  pnResponseCode              := 0;
+  pvInternalResponseMessage   := NULL;
+  pvResponseMessage           := NULL;
+  
+  udbash.LogEntry(
+      lnIDUDBA, 10, 'NPFE', 'DB',
+      'NPFE.NPFEPayBackendAPI.GetPaymentDetails(NP4)', 0,
+      'pvServerPathName:'  ||pvServerPathName
+      ||',pvWebRequestID:' ||pvWebRequestID
+      ||',pvIDDCSession:'  ||pvIDDCSession
+      ||',pvDeviceType:'   ||pvDeviceType
+      ||',pIDMMWebSite:'   ||to_char(pnWebsiteID)
+      ||',pIDFOAccount:'   ||to_char(pnIDFOAccount)
+      ||',pvPaymentMethod:'||pvPaymentMethod,
+      NULL, NULL
+  );
+  
+  begin
+    select C.PREFERREDCURRENCY, C.IDMMPARTNER, C.VIPFUNDINGBAND, c.IDCUSTOMER, c.USERID
+    into lvCustomerCurrency, lnIDMMPartner, lvVIPFundingBand, lnIDCustomer, lvSBPIN
+    from FO.FOSBWEBCUSTOMER_PV c
+    where C.IDFOACCOUNT = pnIDFOAccount;
+  exception
+    when no_data_found then
+      pnResponseCode := 65103001;
+      pvInternalResponseMessage := 'NPFE.NPFEPayBackendAPI.GetPaymentDetails(NP4):Customer with provided idfoaccount='||to_char(pnIDFOAccount)||' was not found!';
+      pvResponseMessage := 'Customer with provided idfoaccount='||to_char(pnIDFOAccount)||' was not found!';
+      raise eProcessingError;
+  end;
+  
+  pnIovationCheck := 1;
+  
+  begin
+    select idfolanguage
+    into lvIDFOLanguage
+    from mmas.mmwebsite
+    where idmmwebsite = pnWebsiteID;
+  end;
+  
+  lvTextSize := NPFESITEDATA.GETTEXTSIZE(pvDeviceType);
+  
+  begin
+    pvPaymentMethodDesc := FOTRAN.FOTABLETRANSLATIONAPI.GETSINGLETRANSLATION('PAYMENTMETHOD',lvIDFOLanguage,lvTextSize,pvPaymentMethod);
+  exception
+    when others then
+      pvPaymentMethodDesc := null;
+      udbash.LogEntry(
+        lnIDUDBA, 10, 'NPFE', 'DB',
+        'NPFE.NPFEPayBackendAPI.GetPaymentDetails(NP4)', 0,
+        'exception in calling FOTRAN.FOTABLETRANSLATIONAPI.GETSINGLETRANSLATION ('||sqlerrm||') with'
+        ||'IDFOLanguage='    ||lvIDFOLanguage
+        ||',TextSize='       ||lvTextSize
+        ||',PaymentMethod='  ||pvPaymentMethod,
+        NULL, NULL
+      );
+  end;
+  begin
+    select NVL(pvPaymentMethodDesc, trim(replace(DESCRIPTION, 'MM1', ''))), VOUCHERPAYMENTMETHOD
+    into pvPaymentMethodDesc, pnVoucherPaymentMethod
+    from MMAS.MMPAYMENTMETHOD
+    where idmmpaymentmethod = pvPaymentMethod;
+  end;
+  
+  begin
+    select decode(count(*),0,1,0)
+    into pnShowNewAccountMessage
+    from FO.FOPAYMENTINSTRUMENTS_PV
+    where
+      idfoaccount = pnIDFOAccount and
+      idmmpaymentmethod = pvPaymentMethod;
+  end;
+  
+  begin
+    select IDPSPROFILE, IDMMPARTNER
+    into lnIDPSProfile, lnIDMMPartner
+    from FO.FOAccountDepositMethod_PV
+    where
+      IDFOACCOUNT = pnIDFOAccount and
+      IDMMPAYMENTMETHOD = pvPaymentMethod and
+      IsAvailableForDeposit = 1;
+  exception
+    when no_data_found then
+      lnIDPSProfile := null;
+  end;
+
+  if lnIDPSProfile is not null then
+    select MERCHANTID, PASSWORD
+    into pvMerchantID, pvMerchantPassword
+    from payment_server.PSPROFILE
+    where IDPSPROFILE = lnIDPSProfile;
+  else
+    pvMerchantID := null;
+    pvMerchantPassword := null;
+  end if;
+
+  begin
+    
+    select
+      (cast(from_tz(cast(sysdate as timestamp),'UTC') at time zone (tz.timezone) as date)-sysdate)*24
+    into pnTimezoneOffset
+    from mmas.mmpartner pt, mmas.mmtimezone tz
+    where
+      pt.idmmpartner = lnIDMMPartner and
+      pt.idmmtimezone = tz.idmmtimezone;
+  exception
+    when others then
+      pnTimezoneOffset := 0;
+  end;
+
+  pnNPFrameWidth := NVL(MMAS.MMVENDORSBUSINESSINFO.BusinessParameterValue('NPIFRAMEWIDTH'), 500);
+  pnNPFrameHeight := NVL(MMAS.MMVENDORSBUSINESSINFO.BusinessParameterValue('NPIFRAMEHEIGHT'), 650);
+
+  begin
+    select isactive
+    into pnIsReachedLimitRemoveText
+    from SPIN_D.LIMITSCOPECONFIG
+    where scope = 'PARTNER'
+    and idscope = to_char(lnIDMMPartner)
+    and idlimitgroup = 'DEPOSITLIMITS';
+    
+  exception
+    when others then
+      pnIsReachedLimitRemoveText := 1;
+  end;
+
+  begin
+    pnShowPersonalLimitLink := spin_d.customerinfo.IsInScopeForUKGC (lnIDCustomer);
+  exception
+    when others then
+      pnResponseCode := 65103003;
+      pvInternalResponseMessage := 'NPFE.NPFEPayBackendAPI.GetPaymentDetails(NP4):Error executing spin_d.customerinfo.IsInScopeForUKGC for cutomer='||to_char(lnIDCustomer);
+      pvResponseMessage := 'Internal error (65105003)';
+      raise eProcessingError;
+  end;
+
+  begin
+    select ISOFFLINE
+    into pnIsOfflineMethod
+    from MMAS.MMPAYMENTMETHODPROVIDER
+    where IDMMPAYMENTMETHOD = pvPaymentMethod and IDMMPAYMENTPROVIDER is null;
+  exception
+    when no_data_found then
+      pnIsOfflineMethod := 0;
+  end;
+
+  
+  lvPaymentProvider := MMAS.GETSINGLEMETHODPAYMENTPROVIDER(pvPaymentMethod);
+  if lvPaymentProvider is not null then
+    select PROVIDERSCREENWIDTH, PROVIDERSCREENHEIGHT, APPLIMITONTXAMOUNT, ADDCHARGESTODEPOSITAMOUNT
+    into pnProviderScreenWidth, pnProviderScreenHeight, pnAppLimitOnTxAmount, pnAddChargesToDepositAmount
+    from MMAS.MMPAYMENTPROVIDER
+    where IDMMPAYMENTPROVIDER = lvPaymentProvider;
+  else
+    
+    pnProviderScreenWidth := 0;
+    pnProviderScreenHeight := 0;
+    pnAppLimitOnTxAmount := 0;
+    pnAddChargesToDepositAmount := 0;
+  end if;
+  
+  if pnProviderScreenWidth < pnNPFrameWidth then
+    pnProviderScreenWidth := pnNPFrameWidth;
+  end if;
+  if pnProviderScreenHeight < pnNPFrameHeight then
+    pnProviderScreenHeight := pnNPFrameHeight;
+  end if;
+  
+  pvActiveRoute := '';
+  for r in (
+    select to_char(status) status
+    from MMAS.MMROUTE
+    where ENVIRONMENT = 'NP' order by ROUTENAME)
+  loop
+    pvActiveRoute := pvActiveRoute||r.status;
+  end loop;
+  begin
+    select REDIRECTIONURL
+    into pvRedirectionURL
+    from NPFE.NPFETRACKER
+    where WEBREQUESTID = pvWebRequestID;
+  exception
+    when others then
+      pvRedirectionURL := null;
+  end;
+  
+  BEGIN
+    SELECT
+      WR.IDFOTRANSACTION, WR.IDMMPAYMENTMETHOD,
+      WR.AMOUNT + WR.AMOUNTCHARGES, WR.IDCURRENCY
+    INTO
+      pnIDFOTransactionPW, pvIDMMPaymentMethodPW,
+      pnAmountPW, pvIDCurrencyPW
+    FROM FO.FOWITHDRAWALREQUEST_PV WR
+    WHERE
+      WR.IDFOACCOUNT = pnIDFOAccount and
+      
+    (WR.TXSTATE = 'H' or (WR.TXSTATE = 'C' and WR.custom1 is null) or (WR.TXSTATE = 'C' and WR.custom1 is not null and nvl(WR.custom1description,'N/A') != 'IDPSTransactionRG')) and 
+      WR.CREATEDTS = (
+        SELECT max(CREATEDTS)
+        FROM FO.FOWITHDRAWALREQUEST_PV
+        WHERE
+          IDFOACCOUNT = pnIDFOAccount and
+          
+       (TXSTATE = 'H' or (TXSTATE = 'C' and custom1 is null) or (TXSTATE = 'C' and custom1 is not null and nvl(custom1description,'N/A') != 'IDPSTransactionRG'))
+      );
+  EXCEPTION
+    WHEN NO_DATA_FOUND THEN  
+      pnIDFOTransactionPW := null;
+      pvIDMMPaymentMethodPW := null;
+      pnAmountPW := null;
+      pvIDCurrencyPW := null;
+      pnResponseCode := 0;
+      pvInternalResponseMessage := '';
+      pvResponseMessage := '';
+  END;
+  
+  if pvIDMMPaymentMethodPW is not null then
+    begin
+      pvPWPaymentMethodDesc := FOTRAN.FOTABLETRANSLATIONAPI.GETSINGLETRANSLATION('PAYMENTMETHOD',lvIDFOLanguage,lvTextSize,pvIDMMPaymentMethodPW);
+    exception
+      when others then
+        select trim(replace(description, 'MM1', ''))
+        into pvPWPaymentMethodDesc
+        from MMAS.MMPAYMENTMETHOD
+        where idmmpaymentmethod = pvIDMMPaymentMethodPW;
+    end;
+  end if;
+  begin
+    select
+      flatfee1, percentagefee1, feeband1, flatfee2, percentagefee2, feeband2, flatfee3, percentagefee3,
+      mintxamount, maxtxamount
+    into
+      pnflatfee1, pnpercentagefee1, pnfeeband1, pnflatfee2, pnpercentagefee2, pnfeeband2, pnflatfee3, pnpercentagefee3,
+      pnMinPaymentAmount, pnMaxPaymentAmount
+    from(
+      select
+        flatfee1, percentagefee1, feeband1, flatfee2, percentagefee2, feeband2, flatfee3, percentagefee3,
+        mintxamount, maxtxamount
+      from mmas.MMAdditionalPaymentConfig apc
+      where
+        idmmpartner = lnIDMMPartner and
+        idcurrency = lvCustomerCurrency and
+        idmmpaymentmethod = pvPaymentMethod and
+        (idmmvipfundingband = lvVIPFundingBand or idmmvipfundingband = 'ANY') and
+        txtype = 'D' and
+        isvisible = 1
+      order by decode(idmmvipfundingband, lvVIPFundingBand, 0, 1))
+    where rownum = 1;
+  exception
+    when others then null;
+  end;
+
+  select count(*)
+  INTO lnWithdrawalForCancel
+  FROM fowithdrawalrequest_pv wr
+  WHERE wr.IDFOACCOUNT = pnIDFOAccount
+  AND (wr.TXSTATE = 'H' or (wr.TXSTATE = 'C' and custom1 is null) or (wr.TxState = 'C' and wr.custom1 is not null and nvl(wr.custom1description,'N/A') != 'IDPSTransactionRG') );
+  
+  
+  if lnWithdrawalForCancel > 1 then
+    pnShowCancelWithdrawal := 1;
+  else
+    pnShowCancelWithdrawal := 0;
+  end if;
+
+EXCEPTION
+  WHEN eProcessingError THEN
+    FO.FOERRORHANDLER.FETCHCUSTOMERERRMSG(pnResponseCode, pvInternalResponseMessage, NULL, pvResponseMessage);
+  WHEN OTHERS THEN
+    pnResponseCode := 65103000;
+    pvInternalResponseMessage := sqlerrm||chr(10)||SYS.DBMS_UTILITY.FORMAT_ERROR_BACKTRACE();
+    pvResponseMessage := 'General error in NPFE.NPFEPayBackendAPI.GetPaymentDetails(NP4): ' || sqlerrm;
+    FO.FOERRORHANDLER.FETCHCUSTOMERERRMSG(pnResponseCode, pvInternalResponseMessage, NULL, pvResponseMessage);
+END GetPaymentDetails;
+
+
+PROCEDURE GetPaymentDetails(
+    pvServerPathName             IN   VARCHAR2,
+    pvWebRequestID               IN   VARCHAR2,
+    pvIDDCSession                IN   VARCHAR2,
+    pvDeviceType                 IN   VARCHAR2,
+    pnWebsiteID                  IN   NUMBER,
+    pnIDFOAccount                IN   NUMBER,
+    pvPaymentMethod              IN   VARCHAR2,
+    pnIDFOTransactionPW          OUT  NUMBER,
+    pvIDMMPaymentMethodPW        OUT  VARCHAR2,
+    pnAmountPW                   OUT  NUMBER,
+    pvIDCurrencyPW               OUT  VARCHAR2,
+    pvPaymentMethodDesc          OUT  VARCHAR2,
+    pvPWPaymentMethodDesc        OUT  VARCHAR2,
+    pnShowNewAccountMessage      OUT  NUMBER,
+    pnIovationCheck              OUT  NUMBER,
+    pnIsReachedLimitRemoveText   OUT  NUMBER,
+    pnTimezoneOffset             OUT  NUMBER,
+    pnProviderScreenWidth        OUT  NUMBER,
+    pnProviderScreenHeight       OUT  NUMBER,
+    pnNPFrameWidth               OUT  NUMBER,
+    pnNPFrameHeight              OUT  NUMBER,
+    pvMerchantID                 OUT  VARCHAR2,
+    pvMerchantPassword           OUT  VARCHAR2,
+    pvActiveRoute                OUT  VARCHAR2,
+    pvRedirectionURL             OUT  VARCHAR2,
+    pnVoucherPaymentMethod       OUT  NUMBER,
+    pnAppLimitOnTxAmount         OUT  NUMBER,
+    pnAddChargesToDepositAmount  OUT  NUMBER,
+    pnFlatfee1                   OUT  NUMBER,
+    pnPercentagefee1             OUT  NUMBER,
+    pnFeeband1                   OUT  NUMBER,
+    pnFlatfee2                   OUT  NUMBER,
+    pnPercentagefee2             OUT  NUMBER,
+    pnFeeband2                   OUT  NUMBER,
+    pnFlatfee3                   OUT  NUMBER,
+    pnPercentagefee3             OUT  NUMBER,
+    pnShowPersonalLimitLink      OUT  NUMBER,
+    pnIsOfflineMethod            OUT  NUMBER,
+    pnMinPaymentAmount           OUT  NUMBER,
+    pnMaxPaymentAmount           OUT  NUMBER,
+    pnResponseCode               OUT  NUMBER,
+    pvInternalResponseMessage    OUT  VARCHAR2,
+    pvResponseMessage            OUT  VARCHAR2)
+IS
+ 
+
+
+
+
+
+
+
+
+
+
+  lnIDUDBA number;
+  lnShowCancelWithdrawal number;
+  
+  eProcessingError   exception;
+BEGIN
+  pnResponseCode              := 0;
+  pvInternalResponseMessage   := NULL;
+  pvResponseMessage           := NULL;
+  
+  udbash.LogEntry(
+      lnIDUDBA, 10, 'NPFE', 'DB',
+      'NPFE.NPFEPayBackendAPI.GetPaymentDetails(NP4)', 0,
+      'pvServerPathName:'  ||pvServerPathName
+      ||',pvWebRequestID:' ||pvWebRequestID
+      ||',pvIDDCSession:'  ||pvIDDCSession
+      ||',pvDeviceType:'   ||pvDeviceType
+      ||',pIDMMWebSite:'   ||to_char(pnWebsiteID)
+      ||',pIDFOAccount:'   ||to_char(pnIDFOAccount)
+      ||',pvPaymentMethod:'||pvPaymentMethod,
+      NULL, NULL
+  );
+  
+  GetPaymentDetails(
+    pvServerPathName,
+    pvWebRequestID,
+    pvIDDCSession,
+    pvDeviceType,
+    pnWebsiteID,
+    pnIDFOAccount,
+    pvPaymentMethod,
+    pnIDFOTransactionPW,
+    pvIDMMPaymentMethodPW,
+    pnAmountPW,
+    pvIDCurrencyPW,
+    pvPaymentMethodDesc,
+    pvPWPaymentMethodDesc,
+    pnShowNewAccountMessage,
+    pnIovationCheck,
+    pnIsReachedLimitRemoveText,
+    pnTimezoneOffset,
+    pnProviderScreenWidth,
+    pnProviderScreenHeight,
+    pnNPFrameWidth,
+    pnNPFrameHeight,
+    pvMerchantID,
+    pvMerchantPassword,
+    pvActiveRoute,
+    pvRedirectionURL,
+    pnVoucherPaymentMethod,
+    pnAppLimitOnTxAmount,
+    pnAddChargesToDepositAmount,
+    pnFlatfee1,
+    pnPercentagefee1,
+    pnFeeband1,
+    pnFlatfee2,
+    pnPercentagefee2,
+    pnFeeband2,
+    pnFlatfee3,
+    pnPercentagefee3,
+    pnShowPersonalLimitLink,
+    pnIsOfflineMethod,
+    pnMinPaymentAmount,
+    pnMaxPaymentAmount,
+    lnShowCancelWithdrawal,
+    pnResponseCode,
+    pvInternalResponseMessage,
+    pvResponseMessage);
+
+EXCEPTION
+  WHEN eProcessingError THEN
+    FO.FOERRORHANDLER.FETCHCUSTOMERERRMSG(pnResponseCode, pvInternalResponseMessage, NULL, pvResponseMessage);
+  WHEN OTHERS THEN
+    pnResponseCode := 65106000;
+    pvInternalResponseMessage := sqlerrm||chr(10)||SYS.DBMS_UTILITY.FORMAT_ERROR_BACKTRACE();
+    pvResponseMessage := 'General error in NPFE.NPFEPayBackendAPI.GetPaymentDetails(NP4): ' || sqlerrm;
+    FO.FOERRORHANDLER.FETCHCUSTOMERERRMSG(pnResponseCode, pvInternalResponseMessage, NULL, pvResponseMessage);
+END GetPaymentDetails; 
+
+PROCEDURE GetWithdrawalPaymentDetails(
+    pvServerPathName             IN   VARCHAR2,
+    pvWebRequestID               IN   VARCHAR2,
+    pvIDDCSession                IN   VARCHAR2,
+    pvDeviceType                 IN   VARCHAR2,
+    pnWebsiteID                  IN   NUMBER,
+    pnIDFOAccount                IN   NUMBER,
+    pvPaymentMethod              IN   VARCHAR2,
+    pnIDFOTransactionPW          OUT  NUMBER,
+    pvIDMMPaymentMethodPW        OUT  VARCHAR2,
+    pnAmountPW                   OUT  NUMBER,
+    pvIDCurrencyPW               OUT  VARCHAR2,
+    pvPaymentMethodDesc          OUT  VARCHAR2,
+    pvPWPaymentMethodDesc        OUT  VARCHAR2,
+    pnTimezoneOffset             OUT  NUMBER,
+    pnProviderScreenWidth        OUT  NUMBER,
+    pnProviderScreenHeight       OUT  NUMBER,
+    pnNPFrameWidth               OUT  NUMBER,
+    pnNPFrameHeight              OUT  NUMBER,
+    pvMerchantID                 OUT  VARCHAR2,
+    pvMerchantPassword           OUT  VARCHAR2,
+    pvActiveRoute                OUT  VARCHAR2,
+    pvRedirectionURL             OUT  VARCHAR2,
+    pnVoucherPaymentMethod       OUT  NUMBER,
+    pnFlatfee1                   OUT  NUMBER,
+    pnPercentagefee1             OUT  NUMBER,
+    pnFeeband1                   OUT  NUMBER,
+    pnFlatfee2                   OUT  NUMBER,
+    pnPercentagefee2             OUT  NUMBER,
+    pnFeeband2                   OUT  NUMBER,
+    pnFlatfee3                   OUT  NUMBER,
+    pnPercentagefee3             OUT  NUMBER,
+    pnResponseCode               OUT  NUMBER,
+    pvInternalResponseMessage    OUT  VARCHAR2,
+    pvResponseMessage            OUT  VARCHAR2)
+IS
+  lnIDUDBA           NUMBER;
+  lnIDPSProfile      NUMBER;
+  lnIDMMPartner      NUMBER;
+  lnIDCustomer       NUMBER;
+  lvCustomerCurrency VARCHAR2(10);
+  lvVIPFundingBand   VARCHAR2(20);
+  lvPaymentProvider  VARCHAR2(10);
+  lvIDFOLanguage     VARCHAR2(10);
+  lvTextSize         VARCHAR2(5);
+  
+  eProcessingError   exception;
+BEGIN
+  pnResponseCode              := 0;
+  pvInternalResponseMessage   := NULL;
+  pvResponseMessage           := NULL;
+  
+  udbash.LogEntry(
+      lnIDUDBA, 10, 'NPFE', 'DB',
+      'NPFE.NPFEPayBackendAPI.GetWithdrawalPaymentDetails', 0,
+      'pvServerPathName:'  ||pvServerPathName
+      ||',pvWebRequestID:' ||pvWebRequestID
+      ||',pvIDDCSession:'  ||pvIDDCSession
+      ||',pvDeviceType:'   ||pvDeviceType
+      ||',pIDMMWebSite:'   ||to_char(pnWebsiteID)
+      ||',pIDFOAccount:'   ||to_char(pnIDFOAccount)
+      ||',pvPaymentMethod:'||pvPaymentMethod,
+      NULL, NULL
+  );
+  
+  begin
+    select C.PREFERREDCURRENCY, C.IDMMPARTNER, C.VIPFUNDINGBAND, c.IDCUSTOMER
+    into lvCustomerCurrency, lnIDMMPartner, lvVIPFundingBand, lnIDCustomer
+    from FO.FOSBWEBCUSTOMER_PV c
+    where C.IDFOACCOUNT = pnIDFOAccount;
+  exception
+    when no_data_found then
+      pnResponseCode := 65105001;
+      pvInternalResponseMessage := 'NPFE.NPFEPayBackendAPI.GetWithdrawalPaymentDetails:Customer with provided idfoaccount='||to_char(pnIDFOAccount)||' was not found!';
+      pvResponseMessage := 'Customer with provided idfoaccount='||to_char(pnIDFOAccount)||' was not found!';
+      raise eProcessingError;
+  end;
+  
+  begin
+    select idfolanguage
+    into lvIDFOLanguage
+    from mmas.mmwebsite
+    where idmmwebsite = pnWebsiteID;
+  end;
+  
+  lvTextSize := NPFESITEDATA.GETTEXTSIZE(pvDeviceType);
+  
+  begin
+    pvPaymentMethodDesc := FOTRAN.FOTABLETRANSLATIONAPI.GETSINGLETRANSLATION('PAYMENTMETHOD',lvIDFOLanguage,lvTextSize,pvPaymentMethod);
+  exception
+    when others then
+      pvPaymentMethodDesc := null;
+      udbash.LogEntry(
+        lnIDUDBA, 10, 'NPFE', 'DB',
+        'NPFE.NPFEPayBackendAPI.GetWithdrawalPaymentDetails', 0,
+        'exception in calling FOTRAN.FOTABLETRANSLATIONAPI.GETSINGLETRANSLATION ('||sqlerrm||') with'
+        ||'IDFOLanguage='    ||lvIDFOLanguage
+        ||',TextSize='       ||lvTextSize
+        ||',PaymentMethod='  ||pvPaymentMethod,
+        NULL, NULL
+      );
+  end;
+  begin
+    select NVL(pvPaymentMethodDesc, trim(replace(DESCRIPTION, 'MM1', ''))), VOUCHERPAYMENTMETHOD
+    into pvPaymentMethodDesc, pnVoucherPaymentMethod
+    from MMAS.MMPAYMENTMETHOD
+    where idmmpaymentmethod = pvPaymentMethod;
+  end;
+  
+  begin
+    
+    select
+      (cast(from_tz(cast(sysdate as timestamp),'UTC') at time zone (tz.timezone) as date)-sysdate)*24
+    into pnTimezoneOffset
+    from mmas.mmpartner pt, mmas.mmtimezone tz
+    where
+      pt.idmmpartner = lnIDMMPartner and
+      pt.idmmtimezone = tz.idmmtimezone;
+  exception
+    when others then
+      pnTimezoneOffset := 0;
+  end;
+
+  pnNPFrameWidth := NVL(MMAS.MMVENDORSBUSINESSINFO.BusinessParameterValue('NPIFRAMEWIDTH'), 500);
+  pnNPFrameHeight := NVL(MMAS.MMVENDORSBUSINESSINFO.BusinessParameterValue('NPIFRAMEHEIGHT'), 650);
+
+  
+  lvPaymentProvider := MMAS.GETSINGLEMETHODPAYMENTPROVIDER(pvPaymentMethod);
+  if lvPaymentProvider is not null then
+    select PROVIDERSCREENWIDTH, PROVIDERSCREENHEIGHT
+    into pnProviderScreenWidth, pnProviderScreenHeight
+    from MMAS.MMPAYMENTPROVIDER
+    where IDMMPAYMENTPROVIDER = lvPaymentProvider;
+  else
+    
+    pnProviderScreenWidth := 0;
+    pnProviderScreenHeight := 0;
+  end if;
+  
+  if pnProviderScreenWidth < pnNPFrameWidth then
+    pnProviderScreenWidth := pnNPFrameWidth;
+  end if;
+  if pnProviderScreenHeight < pnNPFrameHeight then
+    pnProviderScreenHeight := pnNPFrameHeight;
+  end if;
+  
+  pvActiveRoute := '';
+  for r in (
+    select to_char(status) status
+    from MMAS.MMROUTE
+    where ENVIRONMENT = 'NP' order by ROUTENAME)
+  loop
+    pvActiveRoute := pvActiveRoute||r.status;
+  end loop;
+  begin
+    select REDIRECTIONURL
+    into pvRedirectionURL
+    from NPFE.NPFETRACKER
+    where WEBREQUESTID = pvWebRequestID;
+  exception
+    when others then
+      pvRedirectionURL := null;
+  end;
+  
+  BEGIN
+    SELECT
+      WR.IDFOTRANSACTION, WR.IDMMPAYMENTMETHOD,
+      WR.AMOUNT + WR.AMOUNTCHARGES, WR.IDCURRENCY
+    INTO
+      pnIDFOTransactionPW, pvIDMMPaymentMethodPW,
+      pnAmountPW, pvIDCurrencyPW
+    FROM FO.FOWITHDRAWALREQUEST_PV WR
+    WHERE
+      WR.IDFOACCOUNT = pnIDFOAccount and
+      WR.TXSTATE = 'H' and
+      WR.CREATEDTS = (
+        SELECT max(CREATEDTS)
+        FROM FO.FOWITHDRAWALREQUEST_PV
+        WHERE
+          IDFOACCOUNT = pnIDFOAccount and
+          TXSTATE = 'H'
+      );
+  EXCEPTION
+    WHEN NO_DATA_FOUND THEN  
+      pnIDFOTransactionPW := null;
+      pvIDMMPaymentMethodPW := null;
+      pnAmountPW := null;
+      pvIDCurrencyPW := null;
+      pnResponseCode := 0;
+      pvInternalResponseMessage := '';
+      pvResponseMessage := '';
+  END;
+  
+  if pvIDMMPaymentMethodPW is not null then
+    begin
+      pvPWPaymentMethodDesc := FOTRAN.FOTABLETRANSLATIONAPI.GETSINGLETRANSLATION('PAYMENTMETHOD',lvIDFOLanguage,lvTextSize,pvIDMMPaymentMethodPW);
+    exception
+      when others then
+        select trim(replace(description, 'MM1', ''))
+        into pvPWPaymentMethodDesc
+        from MMAS.MMPAYMENTMETHOD
+        where idmmpaymentmethod = pvIDMMPaymentMethodPW;
+    end;
+  end if;
+  begin
+    select flatfee1, percentagefee1, feeband1, flatfee2, percentagefee2, feeband2, flatfee3, percentagefee3
+    into pnflatfee1, pnpercentagefee1, pnfeeband1, pnflatfee2, pnpercentagefee2, pnfeeband2, pnflatfee3, pnpercentagefee3
+    from(
+      select flatfee1, percentagefee1, feeband1, flatfee2, percentagefee2, feeband2, flatfee3, percentagefee3
+      from mmas.MMAdditionalPaymentConfig apc
+      where
+        idmmpartner = lnIDMMPartner and
+        idcurrency = lvCustomerCurrency and
+        idmmpaymentmethod = pvPaymentMethod and
+        (idmmvipfundingband = lvVIPFundingBand or idmmvipfundingband = 'ANY') and
+        txtype = 'W' and
+        isvisible = 1
+      order by decode(idmmvipfundingband, lvVIPFundingBand, 0, 1))
+    where rownum = 1;
+  exception
+    when others then null;
+  end;
+
+EXCEPTION
+  WHEN eProcessingError THEN
+    FO.FOERRORHANDLER.FETCHCUSTOMERERRMSG(pnResponseCode, pvInternalResponseMessage, NULL, pvResponseMessage);
+  WHEN OTHERS THEN
+    pnResponseCode := 65105000;
+    pvInternalResponseMessage := sqlerrm||chr(10)||SYS.DBMS_UTILITY.FORMAT_ERROR_BACKTRACE();
+    pvResponseMessage := 'General error in NPFE.NPFEPayBackendAPI.GetWithdrawalPaymentDetails: ' || sqlerrm;
+    FO.FOERRORHANDLER.FETCHCUSTOMERERRMSG(pnResponseCode, pvInternalResponseMessage, NULL, pvResponseMessage);
+END GetWithdrawalPaymentDetails;
+
+FUNCTION GetAdditionalPaymentConfigID(
+    pIDMMPartner        IN NUMBER,
+    pIDCurrency         IN VARCHAR2,
+    pIDMMPaymentMethod  IN VARCHAR2,
+    pIDMMVipfundingBand IN VARCHAR2
+) return number
+IS
+  lIDMMAdditionalPaymentConfig NUMBER;
+BEGIN
+  begin
+    select IDMMADDITIONALPAYMENTCONFIG
+    into lIDMMAdditionalPaymentConfig
+    from(
+      select IDMMADDITIONALPAYMENTCONFIG
+      from mmas.MMAdditionalPaymentConfig
+      where
+        idmmpartner = pIDMMPartner and
+        idcurrency = pIDCurrency and
+        idmmpaymentmethod = pIDMMPaymentMethod and
+        (idmmvipfundingband = pIDMMVipfundingBand or idmmvipfundingband = 'ANY') and
+        txtype = 'D' and
+        isvisible = 1
+      order by decode(idmmvipfundingband, pIDMMVipfundingBand, 0, 1))
+    where rownum < 2;
+  exception
+    when no_data_found then
+      lIDMMAdditionalPaymentConfig := null;
+  end;
+  return lIDMMAdditionalPaymentConfig;
+END GetAdditionalPaymentConfigID;
+
+FUNCTION GetPersonalDepositLimit(
+    pidcustomer         IN NUMBER,
+    pidaccount          IN NUMBER
+) RETURN NUMBER AS
+  lMaxAmount            number;
+  lDailyDepositLimit    number(22,2);
+  lSUM6DayRest          number(22,2);
+  lSUM29DayRest         number(22,2);
+  lTodayDeposit         number(22,2);
+BEGIN
+  
+  
+  
+  begin
+    select
+      DAILYDEPOSITLIMIT,
+      WEEKLYDEPOSITLIMIT-NVL(SUM6DAYDEPOSITS,0),
+      MONTHLYDEPOSITLIMIT-NVL(SUM29DAYDEPOSITS,0)
+    into
+      lDailyDepositLimit,
+      lSUM6DayRest,
+      lSUM29DayRest
+    from spin_d.SpecialCustomer
+    where idcustomer = pidcustomer;
+  exception
+    when no_data_found then
+      lDailyDepositLimit := null;
+      lSUM6DayRest := null;
+      lSUM29DayRest := null;
+  end;
+  lMaxAmount := null;
+  
+  if lDailyDepositLimit is not null or lSUM6DayRest is not null or lSUM29DayRest is not null then
+    lTodayDeposit := NVL(FO.FOCUSTACCOUNTANT.TOTALDEPOSITSFROMDATETODATE(pidaccount, trunc(sysdate), trunc(sysdate)+1,1),0);
+    if lDailyDepositLimit is not null then
+      lMaxAmount := lDailyDepositLimit - lTodayDeposit;
+    end if;
+    if lSUM6DayRest is not null then
+      if (lMaxAmount is not null and lSUM6DayRest-lTodayDeposit < lMaxAmount) or lMaxAmount is null then
+        lMaxAmount := lSUM6DayRest - lTodayDeposit;
+      end if;
+    end if;
+    if lSUM29DayRest is not null then
+      if (lMaxAmount is not null and lSUM29DayRest-lTodayDeposit < lMaxAmount) or lMaxAmount is null then
+        lMaxAmount := lSUM29DayRest - lTodayDeposit;
+      end if;
+    end if;
+  end if;
+  
+  if lMaxAmount < 0 then
+    lMaxAmount := 0;
+  end if;
+  
+  if lMaxAmount + NVL(lTodayDeposit,0) = 999999999999 then
+    lMaxAmount := null;
+  end if;
+  RETURN lMaxAmount;
+END GetPersonalDepositLimit;
+
+PROCEDURE SendEmail (
+          pIDFOAccount                IN Number,
+          pMailType                   IN Varchar2,
+          pIDMMWebSite                IN Number,
+          pvEMailAddress              in Varchar2 := NULL,
+          pvParam1                    in Varchar2 := NULL,
+          pvValue1                    in Varchar2 := NULL,
+          pvParam2                    in Varchar2 := NULL,
+          pvValue2                    in Varchar2 := NULL,
+          pvParam3                    in Varchar2 := NULL,
+          pvValue3                    in Varchar2 := NULL,
+          pvParam4                    in Varchar2 := NULL,
+          pvValue4                    in Varchar2 := NULL,
+          pvParam5                    in Varchar2 := NULL,
+          pvValue5                    in Varchar2 := NULL,
+          pvParam6                    in Varchar2 := NULL,
+          pvValue6                    in Varchar2 := NULL,
+          pvParam7                    in Varchar2 := NULL,
+          pvValue7                    in Varchar2 := NULL,
+          pvParam8                    IN VARCHAR2 := NULL,
+          pvValue8                    IN VARCHAR2 := NULL,
+          pvParam9                    IN VARCHAR2 := NULL,
+          pvValue9                    IN VARCHAR2 := NULL,
+          pvParam10                   IN VARCHAR2 := NULL,
+          pvValue10                   IN VARCHAR2 := NULL,
+          pvParam11                   IN VARCHAR2 := NULL,
+          pvValue11                   IN VARCHAR2 := NULL,
+          pvParam12                   IN VARCHAR2 := NULL,
+          pvValue12                   IN VARCHAR2 := NULL,
+          pvParam13                   IN VARCHAR2 := NULL,
+          pvValue13                   IN VARCHAR2 := NULL,
+          pvParam14                   IN VARCHAR2 := NULL,
+          pvValue14                   IN VARCHAR2 := NULL,
+          pvParam15                   IN VARCHAR2 := NULL,
+          pvValue15                   IN VARCHAR2 := NULL,
+          pnResponseCode              out Number,
+          pvInternalResponseMessage   out Varchar2,
+          pvResponseMessage           out Varchar2)
+IS
+    lnIDUDBA    Number;
+BEGIN
+  pnResponseCode              := 0;
+  pvInternalResponseMessage   := NULL;
+  pvResponseMessage           := NULL;
+
+  udbash.LogEntry(
+    lnIDUDBA, 10, 'NPFE', 'DB', 'NPFEPAYBACKENDAPI.SendEmail', 0,
+    'pMailType:' || pMailType||', pIDMMWebSite: '||to_char(pIDMMWebSite)
+    ||', pIDFOAccount:'||to_char(pIDFOAccount),
+    NULL, NULL
+  );
+
+  MMALERT.MMSYSTEMMAILER.SENDEMAIL(
+            pIDFOAccount,
+            pMailType,
+            pIDMMWebSite,
+            pvEMailAddress,
+            pvParam1,
+            pvValue1,
+            pvParam2,
+            pvValue2,
+            pvParam3,
+            pvValue3,
+            pvParam4,
+            pvValue4,
+            pvParam5,
+            pvValue5,
+            pvParam6,
+            pvValue6,
+            pvParam7,
+            pvValue7,
+            pvParam8,
+            pvValue8,
+            pvParam9,
+            pvValue9,
+            pvParam10,
+            pvValue10,
+            pvParam11,
+            pvValue11,
+            pvParam12,
+            pvValue12,
+            pvParam13,
+            pvValue13,
+            pvParam14,
+            pvValue14,
+            pvParam15,
+            pvValue15
+            );
+EXCEPTION
+  WHEN OTHERS THEN
+    pnResponseCode := 65104000;
+    pvInternalResponseMessage := sqlerrm||chr(10)||SYS.DBMS_UTILITY.FORMAT_ERROR_BACKTRACE();
+    pvResponseMessage := 'General error in NPFE.NPFEPAYBACKENDAPI.SendEmail: ' || sqlerrm;
+    FO.FOERRORHANDLER.FETCHCUSTOMERERRMSG(pnResponseCode, pvInternalResponseMessage, NULL, pvResponseMessage);
+END SendEmail;
+
+FUNCTION GetDepositAmountDetails(
+    pIDFOAccount in number,
+    pIDMMPaymentMethod in varchar2)
+RETURN NPFEAMOUNTDETAILS_TAB_T IS
+  lRate number;
+  lIDVendorsBusiness varchar2(10);
+  lIDCustomerCurrency varchar2(10);
+  lIDMMPartner number;
+  lVIPFindingBand varchar2(20);
+  lPersonalLimit number;
+  lIDCustomer number;
+  lMinTxAmount number;
+  lMaxTxAmount number;
+  lMinTxAmountConverted number;
+  lMaxTxAmountConverted number;
+  lIsCurrencyListRestricted number(1);
+  lIsCustomerCurrency number(1);
+  lIsCustCurrencySupported number(1);
+  lIsMethodAvailableToCustomer number(1);
+  lCurrencyListRestrictionType varchar2(25);
+  lIDPSProfile number;
+  lIDMMPaymentMethod varchar2(4);
+  
+  lDefaultAmount1 constant number := 7;
+  lDefaultAmount2 constant number := 14;
+  lDefaultAmount3 constant number := 35;
+  lDefaultExcRateFeeChangeTol constant number := 0.02;
+  
+  lAmountDetailsTable NPFEAMOUNTDETAILS_TAB_T := NPFEAMOUNTDETAILS_TAB_T();
+  lIDCOUNTRY varchar2(10);
+  lnIDUDBA number;
+BEGIN
+  
+  begin
+    select C.IDVENDORSBUSINESS, C.PREFERREDCURRENCY, C.IDMMPARTNER, C.VIPFUNDINGBAND, C.IDCUSTOMER, C.IDCOUNTRY
+    into lIDVendorsBusiness, lIDCustomerCurrency, lIDMMPartner, lVIPFindingBand, lIDCustomer, lIDCOUNTRY
+    from FO.FOSBWEBCUSTOMER_PV c
+    where C.IDFOACCOUNT = pidfoaccount;
+  exception
+    when no_data_found then
+      udbash.LogEntry(
+          lnIDUDBA, 10,
+          'NPFE',
+          'DB',
+          'NPFE.NPFEPayBackendAPI.GetDepositAmountDetails',
+          0,
+          'No data found in FO.FOSBWEBCUSTOMER_PV for pIDFOAccount:'||to_char(pidfoaccount),
+          NULL, NULL
+      );
+      return null;
+  end;
+  
+  
+if pIDMMPaymentMethod = 'APBT' then
+    lIDMMPaymentMethod := 'APBB';
+  else
+    lIDMMPaymentMethod := pIDMMPaymentMethod;
+  end if;
+  
+  begin
+    select MINTXAMOUNT, MAXTXAMOUNT
+    into lMinTxAmount, lMaxTxAmount
+    from(
+      select apc.MINTXAMOUNT, apc.MAXTXAMOUNT
+      from mmas.MMAdditionalPaymentConfig apc
+      where
+        idmmpartner = lIDMMPartner and
+        idcurrency = lIDCustomerCurrency and
+        idmmpaymentmethod = lIDMMPaymentMethod and
+        (idmmvipfundingband = lVIPFindingBand or idmmvipfundingband = 'ANY') and
+        txtype = 'D' and
+        isvisible = 1
+      order by decode(idmmvipfundingband, lVIPFindingBand, 0, 1))
+    where rownum = 1;
+  exception
+    when no_data_found then
+      
+      udbash.LogEntry(
+          lnIDUDBA, 10,
+          'NPFE', 'DB', 'NPFE.NPFEPayBackendAPI.GetDepositAmountDetails', 0,
+          'No data found in MMAS.MMADDITIONALPAYMENTCONFIG for user with IDFOAccount='||to_char(pIDFOAccount),
+          NULL, NULL
+      );
+      return null;
+  end;
+  
+  lPersonalLimit := NPFE.NPFEPAYBACKENDAPI.GETPERSONALDEPOSITLIMIT(lIDCustomer, pIDFOAccount);
+
+  begin
+    select NVL(ISCURRENCYLISTRESTRICTED,0), NVL(CURRENCYLISTRESTRICTIONTYPE,'NONE')
+    into lISCurrencyListRestricted, lCurrencyListRestrictionType
+    from MMAS.MMPAYMENTMETHOD
+    where idmmpaymentmethod = lIDMMPaymentMethod;
+  end;
+  begin
+    select IDPSProfile
+    into lIDPSProfile
+    from FO.FOACCOUNTDEPOSITMETHOD_PV
+    where IDFOAccount = pidfoaccount
+    and IDMMPaymentMethod = lIDMMPaymentMethod;
+  exception
+    when no_data_found then
+      
+      udbash.LogEntry(
+          lnIDUDBA, 10,
+          'NPFE', 'DB', 'NPFE.NPFEPayBackendAPI.GetDepositAmountDetails', 0,
+          'No data found in FO.FOACCOUNTDEPOSITMETHOD_PV for user with IDFOAccount='||to_char(pIDFOAccount),
+          NULL, NULL
+      );
+      return null;
+  end;
+  lIsCustCurrencySupported := 0; 
+  lIsMethodAvailableToCustomer := 0;
+  
+  for rec in (
+    select
+      pmc.idcurrency,
+      cfg.amount1 DepositAmount1,
+      cfg.amount2 DepositAmount2,
+      cfg.amount3 DepositAmount3,
+      NVL(cfg.EXCRATEFEECHANGETOLERANCEPCT, lDefaultExcRateFeeChangeTol) ExcRateFeeChangeTolerancePCT,
+      pmc.DEFAULTMINTXAMOUNT,
+      pmc.DEFAULTMAXTXAMOUNT
+    from
+      MMAS.MMPAYPROVIDERMETHODCURRENCY pmc
+      left join MMAS.MMCURRENCYPAYMENTCONFIG cfg on (PMC.IDCURRENCY=CFG.IDCURRENCY and PMC.IDMMPAYMENTMETHOD=CFG.IDMMPAYMENTMETHOD)
+    where
+      pmc.idmmpaymentmethod = lIDMMPaymentMethod and
+      pmc.txtype = 'D' and
+      (
+       lISCurrencyListRestricted=0
+       or
+       (lCurrencyListRestrictionType = 'PARTNER'
+        and pmc.idcurrency in (select idcurrency from MMAS.MMPARTNERCURRENCY where idmmpartner=lIDMMPartner))
+       or
+       (lCurrencyListRestrictionType = 'PROFILE'
+        and pmc.idcurrency in (select idcurrency from PAYMENT_SERVER.PSPROFILECURRENCY where idpsprofile = lIDPSProfile))
+       or
+       (lCurrencyListRestrictionType = 'COUNTRY'
+        and lIDCOUNTRY in (select IDCOUNTRY from MMAS.MMPAYPROVMETHCURRCOUNTRYSPEC where IDMMPAYPROVIDERMETHODCURRENCY = pmc.IDMMPAYPROVIDERMETHODCURRENCY AND ISACTIVE = 1))
+      )
+  )
+  loop
+    lIsMethodAvailableToCustomer := 1; 
+    if rec.idcurrency = lIDCustomerCurrency then
+      lRate := 1;
+      lMinTxAmountConverted := lMinTxAmount;
+      lMaxTxAmountConverted := lMaxTxAmount;
+      lIsCustomerCurrency := 1;
+      lIsCustCurrencySupported := 1;
+    else
+      lRate :=
+          mmforex.FindConvRateFromCurrToCurr(lIDVendorsBusiness, lIDCustomerCurrency, rec.idcurrency, 'D');
+      lMinTxAmountConverted := CEIL(lMinTxAmount*lRate);
+      lMaxTxAmountConverted := FLOOR(lMaxTxAmount*lRate/10)*10;
+      if lMaxTxAmountConverted < 1 then
+        lMaxTxAmountConverted := FLOOR(lMaxTxAmount*lRate);
+      end if;
+      lIsCustomerCurrency := 0;
+    end if;
+    if rec.DEFAULTMINTXAMOUNT > lMinTxAmountConverted then
+      lMinTxAmountConverted := rec.DEFAULTMINTXAMOUNT;
+    end if;
+    if rec.DEFAULTMAXTXAMOUNT < lMaxTxAmountConverted then
+      lMaxTxAmountConverted := rec.DEFAULTMAXTXAMOUNT;
+    end if;
+    
+    lAmountDetailsTable.EXTEND();
+    lAmountDetailsTable(lAmountDetailsTable.last) :=
+      NPFEAMOUNTDETAILS_T(
+        rec.idcurrency,
+        lIsCustomerCurrency, 
+        1, 
+        rec.DepositAmount1,
+        rec.DepositAmount2,
+        rec.DepositAmount3,
+        lMinTxAmountConverted,
+        lMaxTxAmountConverted,
+        floor(lPersonalLimit*lRate),
+        lRate,
+        rec.ExcRateFeeChangeTolerancePCT);
+  end loop;
+  
+  if (lIsMethodAvailableToCustomer = 0) then
+    udbash.LogEntry(
+        lnIDUDBA, 10,
+        'NPFE',
+        'DB',
+        'NPFE.NPFEPayBackendAPI.GetDepositAmountDetails',
+        0,
+        'No configuration found for pIDMMPaymentMethod='||pIDMMPaymentMethod
+          ||', lISCurrencyListRestricted='||to_char(lISCurrencyListRestricted)
+          ||', lCurrencyListRestrictionType='||lCurrencyListRestrictionType,
+        NULL, NULL
+    );
+    return null;
+  end if;
+  
+  if lIsMethodAvailableToCustomer = 1 and lIsCustCurrencySupported = 0 then
+    declare
+      lDepositAmount1 number;
+      lDepositAmount2 number;
+      lDepositAmount3 number;
+      lExcRateFeeChangeTolerancePCT number;
+    begin
+      begin
+        select AMOUNT1, AMOUNT2, AMOUNT3
+        into lDepositAmount1, lDepositAmount2, lDepositAmount3
+        from MMAS.MMCURRENCYPAYMENTCONFIG
+        where
+          IDMMPAYMENTMETHOD = lIDMMPaymentMethod and
+          IDCURRENCY = lIDCustomerCurrency;
+      exception
+        when no_data_found then
+          lDepositAmount1 := lDefaultAmount1;
+          lDepositAmount2 := lDefaultAmount2;
+          lDepositAmount3 := lDefaultAmount3;
+          lExcRateFeeChangeTolerancePCT := lDefaultExcRateFeeChangeTol;
+      end;
+    
+    lAmountDetailsTable.EXTEND();
+    lAmountDetailsTable(lAmountDetailsTable.last) :=
+      NPFEAMOUNTDETAILS_T(
+        lIDCustomerCurrency,
+        1, 
+        0, 
+        lDepositAmount1,
+        lDepositAmount2,
+        lDepositAmount3,
+        lMinTxAmount,
+        lMaxTxAmount,
+        floor(lPersonalLimit),
+        1,
+        lExcRateFeeChangeTolerancePCT);
+    end;
+  end if;
+  return lAmountDetailsTable;
+EXCEPTION
+  when others then
+    udbash.LogEntry(
+        lnIDUDBA, 10,
+        'NPFE', 'DB', 'NPFE.NPFEPayBackendAPI.GetDepositAmountDetails', 0,
+        'General error:'||sqlerrm,
+        NULL, NULL
+    );
+    return null;
+END GetDepositAmountDetails;
+
+FUNCTION GetWithdrawalAmountDetails(
+    pIDFOAccount in number,
+    pIDMMPaymentMethod in varchar2
+) RETURN NPFEWITHDRAWALDETAILS_TAB_T
+IS
+  lnIDUDBA number;
+  lRate number;
+  lIDVendorsBusiness varchar2(10);
+  lIDCustomerCurrency varchar2(10);
+  lIDMMPartner number;
+  lVIPFindingBand varchar2(20);
+  lIDCustomer number;
+  lMinTxAmount number;
+  lMaxTxAmount number;
+  lAvailableAmount number;
+  lMinTxAmountConverted number;
+  lMaxTxAmountConverted number;
+  lTotalRealMoneyBalance number;
+  lWithdrawableBalance number;
+  lLockedBalance number;
+  lWithdrawableNoLosingBonus number;
+  lIsCustomerCurrency number(1);
+  lIsCustCurrencySupported number(1);
+  lIsMethodAvailableToCustomer number(1);
+  
+  lWithdrawalDetailsTable NPFEWITHDRAWALDETAILS_TAB_T := NPFEWITHDRAWALDETAILS_TAB_T();
+BEGIN
+  
+  begin
+    select C.IDVENDORSBUSINESS, C.PREFERREDCURRENCY, C.IDMMPARTNER, C.VIPFUNDINGBAND, C.IDCUSTOMER
+    into lIDVendorsBusiness, lIDCustomerCurrency, lIDMMPartner, lVIPFindingBand, lIDCustomer
+    from FO.FOSBWEBCUSTOMER_PV c
+    where C.IDFOACCOUNT = pidfoaccount;
+  exception
+    when no_data_found then
+      return null;
+  end;
+  
+  begin
+    select MINTXAMOUNT, MAXTXAMOUNT
+    into lMinTxAmount, lMaxTxAmount
+    from(
+      select apc.MINTXAMOUNT, apc.MAXTXAMOUNT
+      from mmas.MMAdditionalPaymentConfig apc
+      where
+        idmmpartner = lIDMMPartner and
+        idcurrency = lIDCustomerCurrency and
+        idmmpaymentmethod = pIDMMPaymentMethod and
+        (idmmvipfundingband = lVIPFindingBand or idmmvipfundingband = 'ANY') and
+        txtype = 'W' and
+        isvisible = 1
+      order by decode(idmmvipfundingband, lVIPFindingBand, 0, 1))
+    where rownum = 1;
+  exception
+    when no_data_found then
+      
+      udbash.LogEntry(
+          lnIDUDBA, 10,
+          'NPFE', 'DB', 'NPFE.NPFEPayBackendAPI.GetWithdrawalAmountDetails', 0,
+          'No data found in MMAS.MMADDITIONALPAYMENTCONFIG for user with IDFOAccount='||to_char(pIDFOAccount),
+          NULL, NULL
+      );
+      return null;
+  end;
+  lIsCustCurrencySupported := 0; 
+  lIsMethodAvailableToCustomer := 0;
+  
+  for rec in (
+    select
+      pmc.idcurrency,
+      pmc.DEFAULTMINTXAMOUNT,
+      pmc.DEFAULTMAXTXAMOUNT
+    from
+      MMAS.MMPAYPROVIDERMETHODCURRENCY pmc
+    where
+      pmc.idmmpaymentmethod = pIDMMPaymentMethod and
+      pmc.txtype = 'W'
+  )
+  loop
+    lIsMethodAvailableToCustomer := 1;
+    if rec.idcurrency = lIDCustomerCurrency then
+      lRate := 1;
+      lMinTxAmountConverted := lMinTxAmount;
+      lMaxTxAmountConverted := lMaxTxAmount;
+      lIsCustomerCurrency := 1;
+      lIsCustCurrencySupported := 1;
+    else
+      lRate :=
+          mmforex.FindConvRateFromCurrToCurr(lIDVendorsBusiness, lIDCustomerCurrency, rec.idcurrency, 'D');
+      lMinTxAmountConverted := CEIL(lMinTxAmount*lRate);
+      lMaxTxAmountConverted := FLOOR(lMaxTxAmount*lRate/10)*10;
+      if lMaxTxAmountConverted < 1 then
+        lMaxTxAmountConverted := FLOOR(lMaxTxAmount*lRate);
+      end if;
+      lIsCustomerCurrency := 0;
+    end if;
+    if rec.DEFAULTMINTXAMOUNT > lMinTxAmountConverted then
+      lMinTxAmountConverted := rec.DEFAULTMINTXAMOUNT;
+    end if;
+    if rec.DEFAULTMAXTXAMOUNT < lMaxTxAmountConverted then
+      lMaxTxAmountConverted := rec.DEFAULTMAXTXAMOUNT;
+    end if;
+    
+    lWithdrawalDetailsTable.EXTEND();
+    lWithdrawalDetailsTable(lWithdrawalDetailsTable.last) :=
+      NPFEWITHDRAWALDETAILS_T(
+        rec.idcurrency,
+        lIsCustomerCurrency, 
+        1, 
+        lMinTxAmountConverted,
+        lMaxTxAmountConverted,
+        lRate);
+  end loop;
+  
+  if lIsMethodAvailableToCustomer = 1 and lIsCustCurrencySupported = 0 then
+    begin
+    
+    lWithdrawalDetailsTable.EXTEND();
+    lWithdrawalDetailsTable(lWithdrawalDetailsTable.last) :=
+      NPFEWITHDRAWALDETAILS_T(
+        lIDCustomerCurrency,
+        1, 
+        0, 
+        lMinTxAmount,
+        lMaxTxAmount,
+        1);
+    end;
+  end if;
+  return lWithdrawalDetailsTable;
+EXCEPTION
+  when others then
+    udbash.LogEntry(
+        lnIDUDBA, 10,
+        'NPFE', 'DB', 'NPFE.NPFEPayBackendAPI.GetWithdrawalAmountDetails', 0,
+        'General error:'||sqlerrm,
+        NULL, NULL
+    );
+    return null;
+END GetWithdrawalAmountDetails;
+
+PROCEDURE GetWithdrawalMethodList(
+    pIDFOAccount                 IN  NUMBER,
+    pvDeviceType                 IN  VARCHAR2,
+    pISPMComparisonAllowed       OUT NUMBER,
+    pPaymentMethodListCur        OUT SYS_REFCURSOR,
+    pnResponseCode               OUT NUMBER,
+    pvInternalResponseMessage    OUT VARCHAR2,
+    pvResponseMessage            OUT VARCHAR2)
+IS
+  lIDMMPartner         NUMBER;
+  lIDUDBA              NUMBER;
+  
+  eNoWithrawalMethodAllowed  EXCEPTION;
+BEGIN
+  pnResponseCode := 0;
+  pvResponseMessage := NULL;
+  pPaymentMethodListCur := NULL;
+
+  udbash.LogEntry(
+    vID => lIDUDBA,
+    vSeverityLevel=>0,
+    vSourceSystem =>'NPFE',
+    vSourceType=>'DB',
+    vSourceObject=>'NPFE.GetWithdrawalMethodList',
+    vCodeSrc=>0,
+    vMessageSrc=> 'pIDFOAccount='||pIDFOAccount||';'||'pvDeviceType='||pvDeviceType,
+    vCode=>NULL,
+    vMesage =>NULL
+  );
+
+  BEGIN
+    SELECT R.IDMMPARTNER
+    INTO lIDMMPartner
+    FROM FO.FOACCOUNTWITHDRAWALMETHOD_PV R, FO.FOACCOUNTWITHDRAWMETHODSUB_PV RR
+    WHERE R.IDFOACCOUNT = pIDFOAccount AND RR.IDFOACCOUNT = pIDFOAccount
+    AND R.IDMMADDITIONALPAYMENTCONFIG = RR.IDMMADDITIONALPAYMENTCONFIG
+    AND RR.ISVISIBLE = 1
+    AND FO.FODepositPriorToWithdrawalCHK (RR.idfoaccount,RR.idmmpaymentprovider,RR.idmmpartner,RR.customervipfundingband) = 1
+    GROUP BY R.IDMMPARTNER;
+  EXCEPTION
+    WHEN NO_DATA_FOUND THEN
+      RAISE eNoWithrawalMethodAllowed;
+    WHEN OTHERS THEN
+      RAISE eNoWithrawalMethodAllowed;
+  END;
+
+  BEGIN
+    SELECT I.ISPMCOMPARISONALLOWED
+    INTO pISPMCOMPARISONALLOWED
+    FROM MMAS.MMPARTNERPAYMENTCONFIG i
+    WHERE I.IDMMPARTNER = lIDMMPartner;
+  EXCEPTION WHEN NO_DATA_FOUND THEN
+    pISPMCOMPARISONALLOWED := 0;
+  END;
+
+  IF pISPMCOMPARISONALLOWED IS NULL THEN
+    pISPMCOMPARISONALLOWED := 0;
+  END IF;
+  
+  OPEN pPaymentMethodListCur FOR
+    SELECT
+      DECODE(R.IDMMPAYMENTMETHOD, 'CFT', 'CD', 'PB', 'CD', R.IDMMPAYMENTMETHOD) IDMMPAYMENTMETHOD,
+      max(RR.SORTORDER) SORTORDER
+    FROM
+      FO.FOACCOUNTWITHDRAWALMETHOD_PV R,
+      FO.FOACCOUNTWITHDRAWMETHODSUB_PV RR,
+      MMAS.MMPAYMENTMETHODPROVIDER w
+    WHERE
+      R.IDFOACCOUNT = pIDFOAccount AND RR.IDFOACCOUNT = pIDFOAccount AND
+      R.IDMMADDITIONALPAYMENTCONFIG = RR.IDMMADDITIONALPAYMENTCONFIG AND
+      RR.ISVISIBLE = 1 AND
+      w.IDMMPAYMENTMETHOD = DECODE(R.IDMMPAYMENTMETHOD, 'CFT', 'CD', 'PB', 'CD', R.IDMMPAYMENTMETHOD) AND
+      
+      ((w.ISALLOWEDFORMOBILEWITHDRAWAL = 1 AND w.IDMMPAYMENTMETHOD != 'BT') or
+        (w.IDMMPAYMENTMETHOD = 'BT' and
+          (
+            SELECT COUNT (*)
+            FROM
+              NPFE.NPFEADDITIONALCONFIGURATION a,
+              FO.FOSBWEBCUSTOMER_PV c
+            WHERE a.IDNPFEPAYMENTMODEL = 'BTW'
+            AND c.idfoaccount = r.idfoaccount
+            AND a.reason1 = 'COUNTRY'
+            AND a.idreason1 = C.IDCOUNTRY
+          ) = 1
+        )
+      ) AND
+      FO.FODepositPriorToWithdrawalCHK (RR.idfoaccount,RR.idmmpaymentprovider,RR.idmmpartner,RR.customervipfundingband) = 1 AND
+      DECODE(R.IDMMPAYMENTMETHOD, 'CFT', 'CD', 'PB', 'CD', R.IDMMPAYMENTMETHOD) not in (
+        select x.IDMMPAYMENTMETHODPIMS
+        from MMAS.MMPAYMETHODMM1PIMSLINKTEMP x
+        where x.MAPPINGTYPE = 'REDIRECTION' and x.MAPPINGCONDITION = 'NONE')
+    GROUP BY DECODE(R.IDMMPAYMENTMETHOD, 'CFT', 'CD', 'PB', 'CD', R.IDMMPAYMENTMETHOD)
+    ORDER BY max(RR.SORTORDER);
+  
+EXCEPTION
+  WHEN eNoWithrawalMethodAllowed THEN
+    pPaymentMethodListCur := null;
+    udbash.LogEntry(
+      vID => lIDUDBA,
+      vSeverityLevel=>10,
+      vSourceSystem =>'NPFE',
+      vSourceType=>'DB',
+      vSourceObject=>'NPFE.GetWithdrawalMethodList',
+      vCodeSrc=>0,
+      vMessageSrc=> 'No withdrawal method allowed: pIDFOAccount='||pIDFOAccount||';'||'pvDeviceType='||pvDeviceType,
+      vCode=>NULL,
+      vMesage =>NULL
+    );
+  WHEN OTHERS THEN
+    pPaymentMethodListCur := null;
+    pnResponseCode := 65107000;
+    pvResponseMessage := 'NPFE.GetWithdrawalMethodList - General error: ' || 'pIDfOAccount ='|| pIDfOAccount || ': ' ||  SQLERRM;
+    FO.Foerrorhandler.FetchCustomerErrMsg(pnResponseCode, SQLERRM, NULL, pvResponseMessage, 'NPFE.GetWithdrawalMethodList');
+END GetWithdrawalMethodList;
+
+PROCEDURE GetMaximumWithdrawalAmount(
+    pnIDFOAccount                IN   NUMBER,
+    pnMaxWithdrawalAmount        OUT  NUMBER)
+IS
+  lnIDUDBA NUMBER;
+BEGIN
+  begin
+    select C.AMOUNT+C.AMOUNTCHARGES - min(F.MINWITHDRAWALAMOUNT)
+    into pnMaxWithdrawalAmount
+    from
+      fo.fowithdrawalrequest_pv C, FO.FOACCOUNTWITHDRAWMETHODLIST_PV F,
+      (
+          select l.IDMMPAYMENTMETHODPIMS, l.IDMMPAYMENTMETHODMM1
+          from MMAS.MMPAYMETHODMM1PIMSLINKTEMP L
+          where L.MAPPINGTYPE='REDIRECTION' and L.MAPPINGCONDITION='NONE'
+      ) X
+    where
+      C.idfoaccount = pnIDFOAccount and
+      C.IDFOACCOUNT = F.IDFOACCOUNT and
+    (C.txstate ='H' or (c.TXSTATE = 'C' and c.custom1 is null) or (c.TXSTATE = 'C' and c.custom1 is not null and nvl(c.custom1description,'N/A') != 'IDPSTransactionRG')) and
+      decode(C.IDMMPAYMENTMETHOD, 'CFT','CD','PB','CD','FSPY','CH', C.IDMMPAYMENTMETHOD) = nvl(X.IDMMPAYMENTMETHODMM1,F.IDMMPAYMENTMETHOD) and
+      (C.IDMMPAYMENTMETHOD not in ('CD','CFT','PB') or F.IDMMCARDTYPE = (select Y.CARDTYPE from SPIN_D.CARD Y where Y.IDCARD = C.OURREFERENCE)) and
+      F.IDMMPAYMENTMETHOD = X.IDMMPAYMENTMETHODPIMS(+)
+     group by C.IDMMPAYMENTMETHOD, C.idfoaccount, C.AMOUNT+C.AMOUNTCHARGES;
+   exception
+     when no_data_found then
+       pnMaxWithdrawalAmount := 1;
+   end;
+EXCEPTION
+  WHEN OTHERS THEN
+    pnMaxWithdrawalAmount := 1;
+    udbash.LogEntry(
+      lnIDUDBA, 10, 'NPFE', 'DB',
+      'NPFE.NPFEPayBackendAPI.GetMaximumWithdrawalAmount', 0,
+      'IN:pIDFOAccount=' || to_char(pnIDFOAccount) || '; ERROR:' || sqlerrm,
+      NULL, NULL
+  );
+END GetMaximumWithdrawalAmount;
+
+PROCEDURE GetDepositMethodList(
+    pIDFOAccount                 IN  NUMBER,
+    pvDeviceType                 IN  VARCHAR2,
+    pnWebsiteID                  IN  NUMBER,
+    pISPMComparisonAllowed       OUT NUMBER,
+    pPaymentMethodListCur        OUT SYS_REFCURSOR,
+    pnResponseCode               OUT NUMBER,
+    pvInternalResponseMessage    OUT VARCHAR2,
+    pvResponseMessage            OUT VARCHAR2)
+IS
+  lIDMMPartner         NUMBER;
+  lnIDUDBA             NUMBER;
+  
+  eNoDepositMethodAllowed  EXCEPTION;
+BEGIN
+  pnResponseCode := 0;
+  pvResponseMessage := NULL;
+  pPaymentMethodListCur := NULL;
+
+  udbash.LogEntry(
+    vID => lnIDUDBA,
+    vSeverityLevel=>0,
+    vSourceSystem =>'NPFE',
+    vSourceType=>'DB',
+    vSourceObject=>'NPFE.NPFEPayBackendAPI.GetDepositMethodList',
+    vCodeSrc=>0,
+    vMessageSrc=> 'pIDFOAccount='||pIDFOAccount||';pvDeviceType='||pvDeviceType||';pnWebsiteID='||to_char(pnWebsiteID),
+    vCode=>NULL,
+    vMesage =>NULL
+  );
+
+  BEGIN
+    SELECT R.IDMMPARTNER
+    INTO lIDMMPartner
+    FROM FO.FOACCOUNTDEPOSITMETHODLIST_PV R
+    WHERE R.IDFOACCOUNT = pIDFOAccount and R.ISVISIBLE = 1
+    GROUP BY R.IDMMPARTNER;
+  EXCEPTION
+    WHEN NO_DATA_FOUND THEN
+      RAISE eNoDepositMethodAllowed;
+  END;
+
+  BEGIN
+    SELECT I.ISPMCOMPARISONALLOWED
+    INTO pISPMCOMPARISONALLOWED
+    FROM MMAS.MMPARTNERPAYMENTCONFIG i
+    WHERE I.IDMMPARTNER = lIDMMPartner;
+  EXCEPTION WHEN NO_DATA_FOUND THEN
+    pISPMCOMPARISONALLOWED := 0;
+  END;
+
+  IF pISPMCOMPARISONALLOWED IS NULL THEN
+    pISPMCOMPARISONALLOWED := 0;
+  END IF;
+  
+  OPEN pPaymentMethodListCur FOR
+    SELECT
+      NVL(x.IDMMPAYMENTMETHODMM1, R.IDMMPAYMENTMETHOD) IDMMPAYMENTMETHOD,
+      max(R.SORTORDER) SORTORDER,
+      FOTRAN.FOTABLETRANSLATIONAPI.GETSINGLETRANSLATION('PAYMENTMETHOD',ws.IDFOLANGUAGE,'L',NVL(x.IDMMPAYMENTMETHODMM1, R.IDMMPAYMENTMETHOD)) PAYMENTMETHOD
+    FROM
+      FO.FOACCOUNTDEPOSITMETHODLIST_PV R,
+      
+      (
+         select l.IDMMPAYMENTMETHODMM1, l.IDMMPAYMENTMETHODPIMS
+         from MMAS.MMPAYMETHODMM1PIMSLINKTEMP l
+         where l.MAPPINGTYPE = 'REDIRECTION' and l.MAPPINGCONDITION = 'NONE'
+      ) X,
+      MMAS.MMWEBSITE ws
+    WHERE
+      R.IDFOACCOUNT = pIDFOAccount and
+      R.ISVISIBLE = 1 and
+      WS.IDMMWEBSITE = pnWebsiteID and
+      R.IDMMPAYMENTMETHOD = x.IDMMPAYMENTMETHODPIMS(+) and
+      
+      (
+        NVL(x.IDMMPAYMENTMETHODMM1, R.IDMMPAYMENTMETHOD) = 'CD'
+        or
+        NVL(x.IDMMPAYMENTMETHODMM1, R.IDMMPAYMENTMETHOD) in
+        (
+           select m.IDMMPAYMENTMETHOD
+           from NPFE.NPFEPAYMENTMODEL m, NPFE.NPFEFORM f
+           where
+             m.TXTYPE = 'D' and
+             m.IDNPFEPAYMENTMODEL = f.IDNPFEPAYMENTMODEL and
+             f.devicetype = pvDeviceType and
+             f.IDMMWEBSITE = pnWebsiteID
+        )
+      )
+    GROUP BY
+      NVL(x.IDMMPAYMENTMETHODMM1, R.IDMMPAYMENTMETHOD),
+      FOTRAN.FOTABLETRANSLATIONAPI.GETSINGLETRANSLATION('PAYMENTMETHOD',ws.IDFOLANGUAGE,'L',NVL(x.IDMMPAYMENTMETHODMM1, R.IDMMPAYMENTMETHOD))
+    ORDER BY max(R.SORTORDER);
+  
+EXCEPTION
+  WHEN eNoDepositMethodAllowed THEN
+    pPaymentMethodListCur := null;
+    udbash.LogEntry(
+      vID => lnIDUDBA,
+      vSeverityLevel=>10,
+      vSourceSystem =>'NPFE',
+      vSourceType=>'DB',
+      vSourceObject=>'NPFE.NPFEPayBackendAPI.GetDepositMethodList',
+      vCodeSrc=>0,
+      vMessageSrc=> 'No deposit method allowed: IDUDBA='||to_char(lnIDUDBA),
+      vCode=>NULL,
+      vMesage =>NULL
+    );
+  WHEN OTHERS THEN
+    pPaymentMethodListCur := null;
+    pnResponseCode := 65109000;
+    pvResponseMessage := 'NPFE.NPFEPayBackendAPI.GetDepositMethodList - General error: '||'pIDfOAccount ='||pIDfOAccount||':'||SQLERRM;
+    FO.Foerrorhandler.FetchCustomerErrMsg(pnResponseCode, SQLERRM, NULL, pvResponseMessage, 'NPFE.GetDepositMethodList');
+END GetDepositMethodList;
+
+FUNCTION GetMinimumAmount(
+    pnIDMMPartner number,
+    pvCustomerCurrency VARCHAR2,
+    pvIDMMPaymentmethod VARCHAR2,
+    pvVIPFundingBand VARCHAR2,
+    pvtxType VARCHAR2,
+    pvCardType VARCHAR2
+) return varchar2 as
+
+  minAmount    number;
+  lnIDUDBA     NUMBER;
+
+BEGIN
+   begin
+    select MINTXAMOUNT
+    into minAmount
+    from(
+      select apc.MINTXAMOUNT
+      from mmas.MMAdditionalPaymentConfig apc
+      where
+        idmmpartner = pnIDMMPartner and
+        idcurrency = pvCustomerCurrency and
+        idmmpaymentmethod = pvIDMMPaymentmethod and
+        nvl(idmmcardtype,'N/A') = nvl(pvCardType,'N/A') and
+        idmmvipfundingband = nvl(pvVIPFundingBand,'NONE')  and
+        txtype = 'W'
+      order by decode(idmmvipfundingband, pvVIPFundingBand, 0, 1))
+    where rownum = 1;
+   exception
+     when no_data_found then
+       select MINTXAMOUNT
+         into minAmount
+         from(
+           select apc.MINTXAMOUNT
+           from mmas.MMAdditionalPaymentConfig apc
+           where
+            idmmpartner = pnIDMMPartner and
+            idcurrency = pvCustomerCurrency and
+            idmmpaymentmethod = pvIDMMPaymentmethod and
+            nvl(idmmcardtype,'N/A') = nvl(pvCardType,'N/A') and
+            idmmvipfundingband = 'ANY'  and
+        txtype = 'W'
+      order by decode(idmmvipfundingband, pvVIPFundingBand, 0, 1))
+    where rownum = 1;
+  end;
+
+  return minAmount;
+
+exception
+  when no_data_found then
+    
+    udbash.LogEntry(
+        lnIDUDBA, 10,
+        'NPFE', 'DB', 'NPFE.NPFEPayBackendAPI.GetMinimumAmount', 0,
+        'No data found in MMAS.MMADDITIONALPAYMENTCONFIG for partner with IDMMPartner='||to_char(pnIDMMPartner),
+        NULL, NULL
+    );
+    return null;
+END;
+
+PROCEDURE GetWithdrawalForCancelList(
+    pnIDFOAccount                IN   NUMBER,
+    pvDeviceType                 IN   VARCHAR2,
+    pnWebsiteID                  IN   NUMBER,
+    pCancelWithdrawalListCur     OUT SYS_REFCURSOR,
+    pnResponseCode               OUT NUMBER,
+    pvInternalResponseMessage    OUT VARCHAR2,
+    pvResponseMessage            OUT VARCHAR2
+) is
+  lnIDUDBA           NUMBER;
+  lnIDPSProfile      NUMBER;
+  lnIDMMPartner      NUMBER;
+ 
+  lvCustomerCurrency VARCHAR2(10);
+ 
+  lvVIPFundingBand   VARCHAR2(20);
+  lvIDFOLanguage     VARCHAR2(10);
+  lvTextSize         VARCHAR2(5);
+  eProcessingError exception;
+begin
+
+  pnResponseCode := 0;
+  pvResponseMessage := NULL;
+
+     
+  begin
+    select C.PREFERREDCURRENCY, C.IDMMPARTNER, C.VIPFUNDINGBAND
+    into lvCustomerCurrency, lnIDMMPartner, lvVIPFundingBand
+    from FO.FOSBWEBCUSTOMER_PV c
+    where C.IDFOACCOUNT = pnIDFOAccount;
+  exception
+    when no_data_found then
+      pnResponseCode := 65108001;
+      pvInternalResponseMessage := 'NPFE.NPFEPayBackendAPI.GetWithdrawalForCancelList:Customer with provided idfoaccount='||to_char(pnIDFOAccount)||' was not found!';
+      pvResponseMessage := 'Customer with provided idfoaccount='||to_char(pnIDFOAccount)||' was not found!';
+      raise eProcessingError;
+  end;
+
+  
+  begin
+    select idfolanguage
+    into lvIDFOLanguage
+    from mmas.mmwebsite
+    where idmmwebsite = pnWebsiteID;
+  end;
+  
+  lvTextSize := NPFESITEDATA.GETTEXTSIZE(pvDeviceType);
+
+  open pCancelWithdrawalListCur
+    for
+        SELECT  WR.IDFOTRANSACTION,WR.IDMMPAYMENTMETHOD,wr.AMOUNT + wr.AMOUNTCHARGES Amount, wr.IDCURRENCY,
+        FOTRAN.FOTABLETRANSLATIONAPI.GETSINGLETRANSLATION('PAYMENTMETHOD',lvIDFOLanguage,lvTextSize,wr.IDMMPAYMENTMETHOD) PaymentMethodDesc,
+        GetMinimumAmount (lnIDMMPartner,lvCustomerCurrency,wr.IDMMPAYMENTMETHOD,nvl(lvVIPFundingBand,'ANY'),wr.TXTYPE,nvl(decode(wr.idmmpaymentclass, 'CD', (select cardtype from card where idcard = to_number(wr.ourreference))),'N/A')) minAmount,
+    case wr.idmmpaymentclass when 'CD' then (select cardnumber from card where idcard = to_number(wr.ourreference))
+                                  when  'eW' then wr.PAYMENTREFERENCE1
+                                  when 'BT' then NVL(trim(wr.BANKACCOUNTNUMBER), wr.ROUTINGCODE)
+                                  else null end as PaymentInstrument
+        FROM fowithdrawalrequest_pv wr
+        WHERE wr.IDFOACCOUNT = pnIDFOAccount
+        AND (wr.TXSTATE = 'H' or (wr.TXSTATE = 'C' and wr.custom1 is null) or (wr.TXSTATE = 'C' and wr.custom1 is not null and nvl(wr.custom1description,'N/A') != 'IDPSTransactionRG'));
+
+ exception
+    when eProcessingError then
+      open pCancelWithdrawalListCur for select null from dual;
+      pnResponseCode := 65108001;
+      pvResponseMessage     := 'Customer with provided idfoaccount doesnt exist!';
+      FO.FOERRORHANDLER.FETCHCUSTOMERERRMSG(pnResponseCode, pvInternalResponseMessage, NULL, pvResponseMessage);
+      pvInternalResponseMessage := pvResponseMessage;
+    when others then
+      open pCancelWithdrawalListCur for select null from dual;
+      pnResponseCode := 65108000;
+      pvResponseMessage     := 'General error!';
+      FO.FOERRORHANDLER.FETCHCUSTOMERERRMSG(pnResponseCode, pvInternalResponseMessage, NULL, pvResponseMessage);
+      pvInternalResponseMessage := pvResponseMessage;
+end GetWithdrawalForCancelList;
+
+
+END;

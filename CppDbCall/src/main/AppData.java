@@ -53,29 +53,26 @@ public class AppData {
         }
         catch(IOException ioe)
         {
-             //ioe.printStackTrace();
-             return;
+             System.out.println(ioe.getMessage());
         }
         catch(ClassNotFoundException c)
         {
              System.out.println("Class not found");
-             c.printStackTrace();
-             return;
         }
     }
 
     public ArrayList<Branch> getBranches() {
         return branches;
     }
-    
+
     public void addBranch(String bname, String connstr) {
         branches.add(new Branch(bname, connstr));
     }
-    
+
     public void addBranch(Branch b) {
         branches.add(b);
     }
-    
+
     public boolean delBranch(String bname) {
         int n = 0;
         Branch b = branches.get(n);
@@ -89,11 +86,21 @@ public class AppData {
         }
         return false;
     }
-    
+
     public boolean delBranch(Branch b) {
         return branches.remove(b);
     }
 
+    public boolean copyBranch(Branch to, Branch from)
+    {
+        if (!branches.contains(to))
+            return false;
+
+        branches.set(branches.indexOf(to), from);
+
+        return true;
+    }
+    
     public String getTnsNamesPath() {
         return tnsNamesPath;
     }

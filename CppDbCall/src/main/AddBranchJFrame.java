@@ -23,27 +23,67 @@ public class AddBranchJFrame extends javax.swing.JDialog {
     {
         return jTextBranchName.getText();
     }
-    
+
+    public void setBranchName(String s)
+    {
+        jTextBranchName.setText(s);
+        SetConnectionString();
+    }
+
     public String getConnectionString()
     {
         return jTextConnectionString.getText();
     }
     
+    public void setConnectionString(String s)
+    {
+        jTextConnectionString.setText(s);
+        SetConnectionString();
+    }
+
     public String getUsername()
     {
         return jTextUser.getText();
     }
-    
+
+    public void setUsername(String s) {
+        jTextUser.setText(s);
+        SetConnectionString();
+    }
+
     public String getPassword()
     {
         return jTextPassword.getText();
     }
-    
+
+    public void setPassword(String s)
+    {
+        jTextPassword.setText(s);
+        SetConnectionString();
+    }
+
     public String getTNSEntry()
     {
         return jTextTNSEntry.getText();
     }
+
+    public void setTNSEntry(String s)
+    {
+        jTextTNSEntry.setText(s);
+        SetConnectionString();
+    }
     
+    public String getURL()
+    {
+        return jTextFieldURL.getText();
+    }
+    
+    public void setURL(String s)
+    {
+        jTextFieldURL.setText(s);
+        SetConnectionString();
+    }
+
     public void SetConnectionString()
     {
         jTextConnectionString.setText(getUsername() + "/" + getPassword() + "@" + getTNSEntry());
@@ -69,6 +109,8 @@ public class AddBranchJFrame extends javax.swing.JDialog {
         jLabel4 = new javax.swing.JLabel();
         jTextTNSEntry = new javax.swing.JTextField();
         jLabel5 = new javax.swing.JLabel();
+        jTextFieldURL = new javax.swing.JTextField();
+        jLabel6 = new javax.swing.JLabel();
 
         setDefaultCloseOperation(javax.swing.WindowConstants.DISPOSE_ON_CLOSE);
         setTitle("Add new branch");
@@ -135,6 +177,8 @@ public class AddBranchJFrame extends javax.swing.JDialog {
 
         jLabel5.setText("TNS Entry");
 
+        jLabel6.setText("URL:");
+
         javax.swing.GroupLayout layout = new javax.swing.GroupLayout(getContentPane());
         getContentPane().setLayout(layout);
         layout.setHorizontalGroup(
@@ -146,21 +190,15 @@ public class AddBranchJFrame extends javax.swing.JDialog {
                         .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.TRAILING)
                             .addComponent(jLabel1, javax.swing.GroupLayout.Alignment.LEADING)
                             .addGroup(layout.createSequentialGroup()
-                                .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.TRAILING, false)
-                                    .addComponent(jTextBranchName, javax.swing.GroupLayout.Alignment.LEADING, javax.swing.GroupLayout.DEFAULT_SIZE, 108, Short.MAX_VALUE)
-                                    .addComponent(jTextUser, javax.swing.GroupLayout.Alignment.LEADING))
+                                .addComponent(jTextBranchName, javax.swing.GroupLayout.PREFERRED_SIZE, 108, javax.swing.GroupLayout.PREFERRED_SIZE)
                                 .addGap(13, 13, 13)))
-                        .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING, false)
+                        .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
                             .addComponent(jLabel2)
                             .addComponent(jTextConnectionString, javax.swing.GroupLayout.PREFERRED_SIZE, 234, javax.swing.GroupLayout.PREFERRED_SIZE)
                             .addGroup(layout.createSequentialGroup()
-                                .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-                                    .addComponent(jTextPassword, javax.swing.GroupLayout.PREFERRED_SIZE, 100, javax.swing.GroupLayout.PREFERRED_SIZE)
-                                    .addComponent(jLabel4))
-                                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.UNRELATED)
-                                .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-                                    .addComponent(jLabel5)
-                                    .addComponent(jTextTNSEntry))))
+                                .addComponent(jLabel4)
+                                .addGap(64, 64, 64)
+                                .addComponent(jLabel5)))
                         .addContainerGap(javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))
                     .addGroup(layout.createSequentialGroup()
                         .addComponent(jLabel3)
@@ -171,6 +209,20 @@ public class AddBranchJFrame extends javax.swing.JDialog {
                 .addGap(18, 18, 18)
                 .addComponent(jButtonCancel)
                 .addGap(0, 0, Short.MAX_VALUE))
+            .addGroup(javax.swing.GroupLayout.Alignment.TRAILING, layout.createSequentialGroup()
+                .addContainerGap()
+                .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.TRAILING)
+                    .addGroup(layout.createSequentialGroup()
+                        .addComponent(jLabel6)
+                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                        .addComponent(jTextFieldURL))
+                    .addGroup(layout.createSequentialGroup()
+                        .addComponent(jTextUser)
+                        .addGap(5, 5, 5)
+                        .addComponent(jTextPassword, javax.swing.GroupLayout.PREFERRED_SIZE, 100, javax.swing.GroupLayout.PREFERRED_SIZE)
+                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.UNRELATED)
+                        .addComponent(jTextTNSEntry, javax.swing.GroupLayout.PREFERRED_SIZE, 124, javax.swing.GroupLayout.PREFERRED_SIZE)))
+                .addContainerGap())
         );
 
         layout.linkSize(javax.swing.SwingConstants.HORIZONTAL, new java.awt.Component[] {jButtonCancel, jButtonOk});
@@ -191,12 +243,16 @@ public class AddBranchJFrame extends javax.swing.JDialog {
                     .addComponent(jLabel3)
                     .addComponent(jLabel4)
                     .addComponent(jLabel5))
-                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
                 .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
                     .addComponent(jTextUser, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
                     .addComponent(jTextPassword, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
                     .addComponent(jTextTNSEntry, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE))
-                .addGap(18, 18, 18)
+                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.UNRELATED)
+                .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
+                    .addComponent(jTextFieldURL, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                    .addComponent(jLabel6))
+                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
                 .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
                     .addComponent(jButtonOk)
                     .addComponent(jButtonCancel))
@@ -275,10 +331,12 @@ public class AddBranchJFrame extends javax.swing.JDialog {
     private javax.swing.JLabel jLabel3;
     private javax.swing.JLabel jLabel4;
     private javax.swing.JLabel jLabel5;
+    private javax.swing.JLabel jLabel6;
     private javax.swing.JTextField jTextBranchName;
     private javax.swing.JTextField jTextConnectionString;
+    private javax.swing.JTextField jTextFieldURL;
     private javax.swing.JTextField jTextPassword;
     private javax.swing.JTextField jTextTNSEntry;
     private javax.swing.JTextField jTextUser;
     // End of variables declaration//GEN-END:variables
-} 
+}
