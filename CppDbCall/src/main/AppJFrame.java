@@ -9,14 +9,17 @@ import java.awt.Cursor;
 import java.awt.Toolkit;
 import java.awt.datatransfer.Clipboard;
 import java.awt.datatransfer.StringSelection;
+import java.awt.event.ItemEvent;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.sql.CallableStatement;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.sql.Types;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -80,7 +83,7 @@ public class AppJFrame extends javax.swing.JFrame {
         " and object_name = ? and object_type in ('PROCEDURE', 'FUNCTION')";
     private static final String qArguments =
         "    select" +
-        "      argument_name, in_out, pls_type," +
+        "      argument_name, in_out, data_type," +
         "      count(*) over (partition by owner) cnt," +
         "      max(length(argument_name)) over (partition by owner) mlen" +
         "    from all_arguments" +
@@ -372,7 +375,7 @@ public class AppJFrame extends javax.swing.JFrame {
         return args;
     }
     
-    private boolean GetProcArgumentsFromDB(ArrayList<DBProcedure> pProcedures)
+    private boolean GetProceduresFromDB(ArrayList<DBProcedure> pProcedures)
     {
         if (jComboUser.getSelectedItem() == null || jComboPackages.getSelectedItem() == null || jComboProcedures.getSelectedItem() == null) {
             ShowError("Please choose procedure/function");
@@ -509,7 +512,7 @@ public class AppJFrame extends javax.swing.JFrame {
     public void GenerateCPPCode2()
     {
         ArrayList<DBProcedure> lProcList = new ArrayList<>();
-        boolean bSuccess = GetProcArgumentsFromDB(lProcList);
+        boolean bSuccess = GetProceduresFromDB(lProcList);
         if (!bSuccess)
             return;
         jTextCode.setText("");
@@ -664,7 +667,7 @@ public class AppJFrame extends javax.swing.JFrame {
     public void GenerateCSharpCode()
     {
         ArrayList<DBProcedure> lProcList = new ArrayList<>();
-        boolean bSuccess = GetProcArgumentsFromDB(lProcList);
+        boolean bSuccess = GetProceduresFromDB(lProcList);
         if (!bSuccess)
             return;
         jTextCode.setText("");
@@ -724,7 +727,7 @@ public class AppJFrame extends javax.swing.JFrame {
     public void GenerateCSharpFinbetCode()
     {
         ArrayList<DBProcedure> lProcList = new ArrayList<>();
-        boolean bSuccess = GetProcArgumentsFromDB(lProcList);
+        boolean bSuccess = GetProceduresFromDB(lProcList);
         if (!bSuccess)
             return;
         jTextCode.setText("");
@@ -794,7 +797,7 @@ public class AppJFrame extends javax.swing.JFrame {
     public void GeneratePlSQLCode()
     {
         ArrayList<DBProcedure> lProcList = new ArrayList<>();
-        boolean bSuccess = GetProcArgumentsFromDB(lProcList);
+        boolean bSuccess = GetProceduresFromDB(lProcList);
         if (!bSuccess)
             return;
         jTextCode.setText("");
@@ -846,7 +849,7 @@ public class AppJFrame extends javax.swing.JFrame {
 
     public void GenerateUDBACall() {
         ArrayList<DBProcedure> lProcList = new ArrayList<>();
-        boolean bSuccess = GetProcArgumentsFromDB(lProcList);
+        boolean bSuccess = GetProceduresFromDB(lProcList);
         if (!bSuccess)
             return;
         jTextCode.setText("");
@@ -1059,6 +1062,56 @@ public class AppJFrame extends javax.swing.JFrame {
         }
         return true;
     }
+
+    private void ExecuteProcedure() throws SQLException {
+        ArrayList<DBProcedure> lProcList = new ArrayList<>();
+        boolean bSuccess = GetProceduresFromDB(lProcList);
+        if (!bSuccess)
+            return;
+        String sCode;
+        String sParamPlaceholders;
+        int nCount;
+        CallableStatement cStmt;
+        Integer sqlType;
+        for (DBProcedure proc : lProcList) {
+            nCount = proc.Arguments.size();
+            sParamPlaceholders = String.join(",", Collections.nCopies(nCount, "?"));
+            sCode = String.format("{call %1$s(%2$s)}", proc.toString(), sParamPlaceholders);
+            jTextCode.setText(sCode);
+            cStmt = myConnection.prepareCall(sCode);
+            // initialize params
+            nCount = 1;
+            for (PLSProcedureArgument p : proc.Arguments) {
+                // IN and IN OUT
+                if (!"OUT".equals(p.getDirectionType())) {
+                    if (p.IsStringType())
+                        cStmt.setString(nCount, "");
+                    else if (p.IsNumericType())
+                        cStmt.setInt(nCount, 0);
+                    else if (p.IsDateTimeType())
+                        cStmt.setDate(nCount, null);
+                }
+                // OUT
+                else {
+                    sqlType = p.getSqlType();
+                    cStmt.registerOutParameter(nCount, sqlType);
+                }
+                nCount = nCount + 1;
+            }
+            cStmt.execute();
+            //nCount = 1;
+            for (PLSProcedureArgument p : proc.Arguments) {
+                if (!"IN".equals(p.getDirectionType())) {
+                    if (p.IsStringType())
+                        AppendCode(String.format("%1$s=%2$s\n", p.getName(), cStmt.getString(p.getName())), 1);
+                    else if (p.IsNumericType())
+                        AppendCode(String.format("%1$s=%2$d\n", p.getName(), cStmt.getInt(p.getName())), 1);
+                    else
+                        AppendCode(String.format("%1$s=%2$tT\n", p.getName(), cStmt.getDate(p.getName())), 1);
+                }
+            }
+        }
+    }
     
     /**
      * This method is called from within the constructor to initialize the form.
@@ -1091,6 +1144,8 @@ public class AppJFrame extends javax.swing.JFrame {
         jComboPackages = new javax.swing.JComboBox();
         jCheckFilterUsers = new javax.swing.JCheckBox();
         jButtonErrorCodes = new javax.swing.JButton();
+        jButtonExecute = new javax.swing.JButton();
+        jLabel7 = new javax.swing.JLabel();
         jPanel2 = new javax.swing.JPanel();
         jLabel6 = new javax.swing.JLabel();
         jRadioCisFinbet = new javax.swing.JRadioButton();
@@ -1175,6 +1230,15 @@ public class AppJFrame extends javax.swing.JFrame {
 
         jLabel3.setText("User:");
 
+        jComboUser.addPopupMenuListener(new javax.swing.event.PopupMenuListener() {
+            public void popupMenuCanceled(javax.swing.event.PopupMenuEvent evt) {
+            }
+            public void popupMenuWillBecomeInvisible(javax.swing.event.PopupMenuEvent evt) {
+                jComboUserPopupMenuWillBecomeInvisible(evt);
+            }
+            public void popupMenuWillBecomeVisible(javax.swing.event.PopupMenuEvent evt) {
+            }
+        });
         jComboUser.addActionListener(new java.awt.event.ActionListener() {
             public void actionPerformed(java.awt.event.ActionEvent evt) {
                 jComboUserActionPerformed(evt);
@@ -1203,6 +1267,15 @@ public class AppJFrame extends javax.swing.JFrame {
             }
         });
 
+        jButtonExecute.setText("Execute");
+        jButtonExecute.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                jButtonExecuteActionPerformed(evt);
+            }
+        });
+
+        jLabel7.setText("(may take a while)");
+
         javax.swing.GroupLayout jPanel1Layout = new javax.swing.GroupLayout(jPanel1);
         jPanel1.setLayout(jPanel1Layout);
         jPanel1Layout.setHorizontalGroup(
@@ -1218,13 +1291,17 @@ public class AppJFrame extends javax.swing.JFrame {
                     .addComponent(jComboUser, 0, 191, Short.MAX_VALUE)
                     .addComponent(jComboPackages, 0, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
                     .addComponent(jComboProcedures, 0, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))
-                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED, 105, Short.MAX_VALUE)
                 .addGroup(jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
                     .addGroup(javax.swing.GroupLayout.Alignment.TRAILING, jPanel1Layout.createSequentialGroup()
                         .addComponent(jCheckFilterUsers)
                         .addGap(22, 22, 22))
                     .addGroup(javax.swing.GroupLayout.Alignment.TRAILING, jPanel1Layout.createSequentialGroup()
-                        .addComponent(jButtonErrorCodes)
+                        .addComponent(jButtonExecute)
+                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                        .addGroup(jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                            .addComponent(jLabel7)
+                            .addComponent(jButtonErrorCodes))
                         .addContainerGap())))
         );
         jPanel1Layout.setVerticalGroup(
@@ -1236,14 +1313,17 @@ public class AppJFrame extends javax.swing.JFrame {
                     .addComponent(jLabel3)
                     .addComponent(jCheckFilterUsers))
                 .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                .addGroup(jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
-                    .addComponent(jComboPackages, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
-                    .addComponent(jLabel4))
+                .addGroup(jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                    .addGroup(jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
+                        .addComponent(jComboPackages, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                        .addComponent(jLabel4))
+                    .addComponent(jLabel7))
                 .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
                 .addGroup(jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
                     .addComponent(jComboProcedures, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
                     .addComponent(jLabel5)
-                    .addComponent(jButtonErrorCodes))
+                    .addComponent(jButtonErrorCodes)
+                    .addComponent(jButtonExecute))
                 .addContainerGap(javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))
         );
 
@@ -1344,6 +1424,7 @@ public class AppJFrame extends javax.swing.JFrame {
         bindingGroup.addBinding(binding);
 
         jCheckParseSource.setText("Parse source");
+        jCheckParseSource.setToolTipText("If you check this option, package specification will be parsed for parameter's friendly names");
         jCheckParseSource.addActionListener(new java.awt.event.ActionListener() {
             public void actionPerformed(java.awt.event.ActionEvent evt) {
                 jCheckParseSourceActionPerformed(evt);
@@ -1571,7 +1652,7 @@ public class AppJFrame extends javax.swing.JFrame {
         }
         myOds.setUser(currentBranch.getUserName());
         myOds.setPassword(currentBranch.getPassword());
-        Logger.getLogger(AppJFrame.class.getName()).log(Level.INFO, "connecting using " + currentBranch.getConnString());
+        Logger.getLogger(AppJFrame.class.getName()).log(Level.INFO, "connecting using {0}", currentBranch.getConnString());
         try {
             myConnection = myOds.getConnection();
             Logger.getLogger(AppJFrame.class.getName()).log(Level.INFO, "connected");
@@ -1601,8 +1682,10 @@ public class AppJFrame extends javax.swing.JFrame {
 
     private void jComboUserActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jComboUserActionPerformed
         String user = jComboUser.getSelectedItem().toString();
-        PopulatePackages(user);
-        jComboPackagesActionPerformed(null);
+        // this was moved to jComboUserPopupMenuWillBecomeInvisible
+        // to speed up chosing process
+        //PopulatePackages(user);
+        //jComboPackagesActionPerformed(null);
     }//GEN-LAST:event_jComboUserActionPerformed
 
     private void jComboPackagesActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jComboPackagesActionPerformed
@@ -1674,10 +1757,7 @@ public class AppJFrame extends javax.swing.JFrame {
     }//GEN-LAST:event_jCheckFilterUsersActionPerformed
 
     private void jCheckParseSourceActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jCheckParseSourceActionPerformed
-        if (jCheckParseSource.isSelected())
-            this.bParseSource = true;
-        else
-            this.bParseSource = false;
+        this.bParseSource = jCheckParseSource.isSelected();
     }//GEN-LAST:event_jCheckParseSourceActionPerformed
 
     private void jRadioPlSqlActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jRadioPlSqlActionPerformed
@@ -1696,6 +1776,22 @@ public class AppJFrame extends javax.swing.JFrame {
             ExtractErrorCodes(userName, pckName, "PACKAGE BODY");
         }
     }//GEN-LAST:event_jButtonErrorCodesActionPerformed
+
+    private void jButtonExecuteActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jButtonExecuteActionPerformed
+        try {
+            ExecuteProcedure();
+        } catch (SQLException ex) {
+            Logger.getLogger(AppJFrame.class.getName()).log(Level.SEVERE, null, ex);
+        }
+    }//GEN-LAST:event_jButtonExecuteActionPerformed
+
+    private void jComboUserPopupMenuWillBecomeInvisible(javax.swing.event.PopupMenuEvent evt) {//GEN-FIRST:event_jComboUserPopupMenuWillBecomeInvisible
+        Object selItem = jComboUser.getSelectedItem();
+        if (selItem != null) {
+            PopulatePackages(selItem.toString());
+            jComboPackagesActionPerformed(null);
+        }
+    }//GEN-LAST:event_jComboUserPopupMenuWillBecomeInvisible
 
     /**
      * @param args the command line arguments
@@ -1743,6 +1839,7 @@ public class AppJFrame extends javax.swing.JFrame {
     private javax.swing.JButton jButtonCreateCode;
     private javax.swing.JButton jButtonEditBranch;
     private javax.swing.JButton jButtonErrorCodes;
+    private javax.swing.JButton jButtonExecute;
     private javax.swing.JButton jButtonRemoveBranch;
     private javax.swing.JCheckBox jCheckFilterUsers;
     private javax.swing.JCheckBox jCheckParseSource;
@@ -1756,6 +1853,7 @@ public class AppJFrame extends javax.swing.JFrame {
     private javax.swing.JLabel jLabel4;
     private javax.swing.JLabel jLabel5;
     private javax.swing.JLabel jLabel6;
+    private javax.swing.JLabel jLabel7;
     private javax.swing.JPanel jPanel1;
     private javax.swing.JPanel jPanel2;
     private javax.swing.JPanel jPanel3;

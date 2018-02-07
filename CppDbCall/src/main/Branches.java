@@ -75,4 +75,4 @@ public class Branches implements ComboBoxModel<Branch> {
     public void removeListDataListener(ListDataListener l) {
         listeners.remove(l);
     }
-} 
+}

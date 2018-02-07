@@ -5,6 +5,7 @@
  */
 package main;
 
+import java.sql.Types;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -22,6 +23,7 @@ public class PLSProcedureArgument {
     String cisParameterType;
     String cisFBParameterType;
     String cisFBAddParamFunction;
+    Integer sqlType;
     String plsInitValue;
     
     static final Map<String , String> CISTYPES = new HashMap<String , String>() {{
@@ -52,6 +54,39 @@ public class PLSProcedureArgument {
         put("TIMESTAMP WITH LOCAL TIME ZONE", "TimeStampLTZ");
         put("TIMESTAMP WITH TIME ZONE", "TimeStampTZ");
         put("VARCHAR2",                 "Varchar2");
+    }};
+    
+    static final Map<String , Integer> SQLTYPES = new HashMap<String , Integer>() {{
+        put("BFILE",                    Types.OTHER);
+        put("BINARY_DOUBLE",            Types.BINARY);
+        put("BINARY_FLOAT",             Types.BINARY);
+        put("BINARY_INTEGER",           Types.INTEGER);
+        put("BLOB",                     Types.BLOB);
+        put("CHAR",                     Types.CHAR);
+        put("CLOB",                     Types.CLOB);
+        put("DATE",                     Types.DATE);
+        put("DOUBLE PRECISION",         Types.DOUBLE);
+        put("FLOAT",                    Types.FLOAT);
+        put("INTEGER",                  Types.INTEGER);
+        put("INTERVAL DAY TO SECOND",   Types.OTHER);
+        put("INTERVAL YEAR TO MONTH",   Types.OTHER);
+        put("LONG",                     Types.BIGINT);
+        put("LONG RAW",                 Types.OTHER);
+        put("NUMBER",                   Types.NUMERIC);
+        put("PLS_INTEGER",              Types.INTEGER);
+        put("RAW",                      Types.OTHER);
+        put("REAL",                     Types.REAL);
+        put("SMALLINT",                 Types.SMALLINT);
+        put("STRING",                   Types.VARCHAR);
+        put("TIME",                     Types.TIME);
+        put("TIME WITH TIME ZONE",      Types.TIME_WITH_TIMEZONE);
+        put("TIMESTAMP",                Types.TIMESTAMP);
+        put("TIMESTAMP WITH LOCAL TIME ZONE", Types.TIMESTAMP_WITH_TIMEZONE);
+        put("TIMESTAMP WITH TIME ZONE", Types.TIMESTAMP_WITH_TIMEZONE);
+        put("VARCHAR2",                 Types.VARCHAR);
+        //
+        put("REF CURSOR",               Types.REF_CURSOR);
+        put("PL/SQL BOOLEAN",           Types.BOOLEAN);
     }};
 
     static final HashSet<String> STRTYPES = new HashSet<>();
@@ -142,6 +177,10 @@ public class PLSProcedureArgument {
             this.plsInitValue = "0";
         else if (IsDateTimeType())
             this.plsInitValue = "sysdate";
+        //
+        sqlType = SQLTYPES.get(pType);
+        if (sqlType == null)
+            sqlType = Types.OTHER;
     }
 
     public final boolean IsStringType() {
@@ -151,7 +190,7 @@ public class PLSProcedureArgument {
     public final boolean IsNumericType() {
         return NUMTYPES.contains(plsType);
     }
-    
+
     public final boolean IsDateTimeType() {
         return DATTYPES.contains(plsType);
     }
@@ -183,7 +222,11 @@ public class PLSProcedureArgument {
     public String getCisFBParameterType() {
         return cisFBParameterType;
     }
-    
+
+    public Integer getSqlType() {
+        return sqlType;
+    }
+
     public String getPlSQLInitialValue() {
         return plsInitValue;
     }
