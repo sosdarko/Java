@@ -19,6 +19,23 @@ public class AddBranchJFrame extends javax.swing.JDialog {
         initComponents();
     }
 
+    public void SetBranch(Branch b) {
+        jTextBranchName.setText(b.getName());
+        jTextFieldURL.setText(b.getURL());
+        jTextPassword.setText(b.getPassword());
+        jTextTNSEntry.setText(b.getTnsEntry());
+        jTextUser.setText(b.getUserName());
+        SetConnectionString();
+    }
+
+    public void FillBranch(Branch b) {
+        b.setName(this.getBranchName());
+        b.setUserName(this.getUsername());
+        b.setPassword(this.getPassword());
+        b.setTnsEntry(this.getTNSEntry());
+        b.setURL(this.getURL());
+    }
+
     public String getBranchName()
     {
         return jTextBranchName.getText();
@@ -113,7 +130,7 @@ public class AddBranchJFrame extends javax.swing.JDialog {
         jLabel6 = new javax.swing.JLabel();
 
         setDefaultCloseOperation(javax.swing.WindowConstants.DISPOSE_ON_CLOSE);
-        setTitle("Add new branch");
+        setTitle("Edit branch details");
         setLocationByPlatform(true);
         setName("Add Branch"); // NOI18N
         setResizable(false);

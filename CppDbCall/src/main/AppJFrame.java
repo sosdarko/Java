@@ -219,6 +219,7 @@ public class AppJFrame extends javax.swing.JFrame {
         Logger.getLogger(AppJFrame.class.getName()).log(Level.INFO, query);
         myUserPackageProcedures.clear();
         jComboProcedures.removeAll();
+        
         // test connection
         try {
             if (myConnection.isClosed()) {
@@ -254,32 +255,52 @@ public class AppJFrame extends javax.swing.JFrame {
         jComboProcedures.setModel(model);
     }
 
-    private void EditBranch()
+    private void BranchAdd()
+    {
+        AddBranchJFrame bf = new AddBranchJFrame();
+        bf.setLocationRelativeTo(this);
+        bf.setModal(true);
+        bf.setVisible(true);
+        if (bf.bSuccess) {
+            Branch b = new Branch();
+            bf.FillBranch(b);
+            appData.addBranch(b);
+            appData.Save();
+            branchesModel = new Branches(appData.getBranches());
+            jComboBranches.setModel(branchesModel);
+            jComboBranches.setSelectedItem(b);
+            currentBranch = b;
+        }
+    }
+
+    private void BranchEdit()
     {
         AddBranchJFrame bf = new AddBranchJFrame();
         bf.setLocationRelativeTo(this);
         bf.setModal(true);
         // fill dialog fields
-        bf.setBranchName(currentBranch.getName());
-        bf.setUsername(currentBranch.getUserName());
-        bf.setPassword(currentBranch.getPassword());
-        bf.setTNSEntry(currentBranch.getTnsEntry());
-        bf.setURL(currentBranch.getURL());
-        //
+        bf.SetBranch(currentBranch);
+        // openning the branch dialog
         bf.setVisible(true);
         if (bf.bSuccess) {
-            Branch b;
-            String bname = bf.getBranchName();
-            String user = bf.getUsername();
-            String pass = bf.getPassword();
-            String tns = bf.getTNSEntry();
-            String url = bf.getURL();
-            b = new Branch(bname, user, pass, tns, url);
+            Branch b = new Branch();
+            bf.FillBranch(b);
             appData.copyBranch(currentBranch, b);
             appData.Save();
         }
     }
 
+    private void BranchDelete()
+    {
+        boolean delBranch = appData.delBranch(currentBranch);
+        if (delBranch) {
+            branchesModel = new Branches(appData.getBranches());
+        }
+        Branch b = (Branch) jComboBranches.getSelectedItem();
+        currentBranch = b;
+        appData.Save();
+    }
+    
     public void AppendCode(String sCode, int nIndentLevel)
     {
         if (nIndentLevel > 0) {
@@ -1011,7 +1032,9 @@ public class AppJFrame extends javax.swing.JFrame {
                 }
                 i += 1;
             }
-            infoList.get(j).setCodeEnd(i-1);
+            if (j >= 0) {
+                infoList.get(j).setCodeEnd(i-1);
+            }
         }
         catch (SQLException e ) {
             Logger.getLogger(AppJFrame.class.getName()).log(Level.SEVERE, null, e);
@@ -1022,14 +1045,20 @@ public class AppJFrame extends javax.swing.JFrame {
                 allErrors = "";
                 for (PLSCodeInfo info : infoList) {
                     AppendCode(info.toString() + "\n");
-                    if (info.HaveErrorCodes())
+                    if (info.HaveErrorCodes()) {
                         allErrors += info.FormatErrorCodeList() + ",";
+                        
+                    }
                     //AppendCode(info.GetTestSQL() + "\n");
                 }
-                String sCheckSQL;
-                sCheckSQL = PLSCodeInfo.GetValidationTestSQL(allErrors.substring(0, allErrors.length()-1));
+                String sCheckSQL = "";
+                if (!allErrors.isEmpty()) {
+                    sCheckSQL = PLSCodeInfo.GetValidationTestSQL(allErrors.substring(0, allErrors.length()-1));
+                }
                 AppendCode(sCheckSQL + "\n");
-                sCheckSQL = PLSCodeInfo.GetExistenceTestSQL(allErrors.substring(0, allErrors.length()-1));
+                if (!allErrors.isEmpty()) {
+                    sCheckSQL = PLSCodeInfo.GetExistenceTestSQL(allErrors.substring(0, allErrors.length()-1));
+                }
                 AppendCode(sCheckSQL + "\n");
                 // write source freed from comments
                 File file = new File("source.txt");
@@ -1145,7 +1174,6 @@ public class AppJFrame extends javax.swing.JFrame {
         jCheckFilterUsers = new javax.swing.JCheckBox();
         jButtonErrorCodes = new javax.swing.JButton();
         jButtonExecute = new javax.swing.JButton();
-        jLabel7 = new javax.swing.JLabel();
         jPanel2 = new javax.swing.JPanel();
         jLabel6 = new javax.swing.JLabel();
         jRadioCisFinbet = new javax.swing.JRadioButton();
@@ -1253,7 +1281,7 @@ public class AppJFrame extends javax.swing.JFrame {
             }
         });
 
-        jCheckFilterUsers.setText("Filter users");
+        jCheckFilterUsers.setText("<html>Only users<br />with objects</html>");
         jCheckFilterUsers.addActionListener(new java.awt.event.ActionListener() {
             public void actionPerformed(java.awt.event.ActionEvent evt) {
                 jCheckFilterUsersActionPerformed(evt);
@@ -1268,13 +1296,12 @@ public class AppJFrame extends javax.swing.JFrame {
         });
 
         jButtonExecute.setText("Execute");
+        jButtonExecute.setEnabled(false);
         jButtonExecute.addActionListener(new java.awt.event.ActionListener() {
             public void actionPerformed(java.awt.event.ActionEvent evt) {
                 jButtonExecuteActionPerformed(evt);
             }
         });
-
-        jLabel7.setText("(may take a while)");
 
         javax.swing.GroupLayout jPanel1Layout = new javax.swing.GroupLayout(jPanel1);
         jPanel1.setLayout(jPanel1Layout);
@@ -1291,34 +1318,32 @@ public class AppJFrame extends javax.swing.JFrame {
                     .addComponent(jComboUser, 0, 191, Short.MAX_VALUE)
                     .addComponent(jComboPackages, 0, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
                     .addComponent(jComboProcedures, 0, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))
-                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED, 105, Short.MAX_VALUE)
+                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
                 .addGroup(jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-                    .addGroup(javax.swing.GroupLayout.Alignment.TRAILING, jPanel1Layout.createSequentialGroup()
-                        .addComponent(jCheckFilterUsers)
-                        .addGap(22, 22, 22))
                     .addGroup(javax.swing.GroupLayout.Alignment.TRAILING, jPanel1Layout.createSequentialGroup()
                         .addComponent(jButtonExecute)
                         .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                        .addGroup(jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-                            .addComponent(jLabel7)
-                            .addComponent(jButtonErrorCodes))
-                        .addContainerGap())))
+                        .addComponent(jButtonErrorCodes))
+                    .addComponent(jCheckFilterUsers, javax.swing.GroupLayout.Alignment.TRAILING, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE))
+                .addGap(11, 11, 11))
         );
         jPanel1Layout.setVerticalGroup(
             jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
             .addGroup(jPanel1Layout.createSequentialGroup()
                 .addContainerGap()
-                .addGroup(jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
-                    .addComponent(jComboUser, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
-                    .addComponent(jLabel3)
-                    .addComponent(jCheckFilterUsers))
-                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
                 .addGroup(jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-                    .addGroup(jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
-                        .addComponent(jComboPackages, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
-                        .addComponent(jLabel4))
-                    .addComponent(jLabel7))
-                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                    .addGroup(jPanel1Layout.createSequentialGroup()
+                        .addGroup(jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
+                            .addComponent(jComboUser, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                            .addComponent(jLabel3))
+                        .addGap(4, 4, 4)
+                        .addGroup(jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
+                            .addComponent(jComboPackages, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                            .addComponent(jLabel4))
+                        .addGap(6, 6, 6))
+                    .addGroup(javax.swing.GroupLayout.Alignment.TRAILING, jPanel1Layout.createSequentialGroup()
+                        .addComponent(jCheckFilterUsers)
+                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)))
                 .addGroup(jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
                     .addComponent(jComboProcedures, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
                     .addComponent(jLabel5)
@@ -1598,25 +1623,7 @@ public class AppJFrame extends javax.swing.JFrame {
     }//GEN-LAST:event_jComboBranchesActionPerformed
 
     private void jButtonAddBranchActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jButtonAddBranchActionPerformed
-        AddBranchJFrame bf = new AddBranchJFrame();
-        bf.setLocationRelativeTo(this);
-        bf.setModal(true);
-        bf.setVisible(true);
-        if (bf.bSuccess) {
-            Branch b;
-            String bname = bf.getBranchName();
-            String user = bf.getUsername();
-            String pass = bf.getPassword();
-            String tns = bf.getTNSEntry();
-            String url = bf.getURL();
-            b = new Branch(bname, user, pass, tns, url);
-            appData.addBranch(b);
-            appData.Save();
-            branchesModel = new Branches(appData.getBranches());
-            jComboBranches.setSelectedItem(b);
-            jComboBranches.repaint();
-            currentBranch = b;
-        }
+        BranchAdd();
     }//GEN-LAST:event_jButtonAddBranchActionPerformed
 
     private void jButtonConnectActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jButtonConnectActionPerformed
@@ -1652,7 +1659,7 @@ public class AppJFrame extends javax.swing.JFrame {
         }
         myOds.setUser(currentBranch.getUserName());
         myOds.setPassword(currentBranch.getPassword());
-        Logger.getLogger(AppJFrame.class.getName()).log(Level.INFO, "connecting using {0}", currentBranch.getConnString());
+        Logger.getLogger(AppJFrame.class.getName()).log(Level.INFO, "connecting using {0}", currentBranch.getUserAtDB() + " " + myOds.getDriverType());
         try {
             myConnection = myOds.getConnection();
             Logger.getLogger(AppJFrame.class.getName()).log(Level.INFO, "connected");
@@ -1682,7 +1689,7 @@ public class AppJFrame extends javax.swing.JFrame {
 
     private void jComboUserActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jComboUserActionPerformed
         String user = jComboUser.getSelectedItem().toString();
-        // this was moved to jComboUserPopupMenuWillBecomeInvisible
+        // this has been moved to jComboUserPopupMenuWillBecomeInvisible
         // to speed up chosing process
         //PopulatePackages(user);
         //jComboPackagesActionPerformed(null);
@@ -1695,40 +1702,40 @@ public class AppJFrame extends javax.swing.JFrame {
             this.bIsPackage = false;
         else
             this.bIsPackage = true;
+        this.setCursor(Cursor.getPredefinedCursor(Cursor.WAIT_CURSOR));
         PopulateProcedures(user, pck);
+        this.setCursor(Cursor.getPredefinedCursor(Cursor.DEFAULT_CURSOR));
     }//GEN-LAST:event_jComboPackagesActionPerformed
 
     private void jButtonCreateCodeActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jButtonCreateCodeActionPerformed
-        if (null != sCodeType)
+        if (null != sCodeType) {
+            this.setCursor(Cursor.getPredefinedCursor(Cursor.WAIT_CURSOR));
             switch (sCodeType) {
-            case "C++":
-                GenerateCPPCode2();
-                break;
-            case "C# DAP":
-                GenerateCSharpCode();
-                break;
-            case "C# Finbet":
-                GenerateCSharpFinbetCode();
-                break;
-            case "PLSQL":
-                GeneratePlSQLCode();
-                break;
-            case "UDBA":
-                GenerateUDBACall();
+                case "C++":
+                    GenerateCPPCode2();
+                    break;
+                case "C# DAP":
+                    GenerateCSharpCode();
+                    break;
+                case "C# Finbet":
+                    GenerateCSharpFinbetCode();
+                    break;
+                case "PLSQL":
+                    GeneratePlSQLCode();
+                    break;
+                case "UDBA":
+                    GenerateUDBACall();
+            }
+            this.setCursor(Cursor.getPredefinedCursor(Cursor.DEFAULT_CURSOR));
         }
     }//GEN-LAST:event_jButtonCreateCodeActionPerformed
 
     private void jButtonRemoveBranchActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jButtonRemoveBranchActionPerformed
-        this.setCursor(Cursor.getPredefinedCursor(Cursor.WAIT_CURSOR));
-        boolean delBranch = appData.delBranch(currentBranch);
-        if (delBranch)
-            branchesModel = new Branches(appData.getBranches());
-        this.setCursor(Cursor.getPredefinedCursor(Cursor.DEFAULT_CURSOR));
-        appData.Save();
+        BranchDelete();
     }//GEN-LAST:event_jButtonRemoveBranchActionPerformed
 
     private void jButtonEditBranchActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jButtonEditBranchActionPerformed
-        EditBranch();
+        BranchEdit();
     }//GEN-LAST:event_jButtonEditBranchActionPerformed
 
     private void jButton1ActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jButton1ActionPerformed
@@ -1773,7 +1780,9 @@ public class AppJFrame extends javax.swing.JFrame {
         String pckName = jComboPackages.getSelectedItem().toString();
         String prcName = jComboProcedures.getSelectedItem().toString();
         if (userName != null) {
+            this.setCursor(Cursor.getPredefinedCursor(Cursor.WAIT_CURSOR));
             ExtractErrorCodes(userName, pckName, "PACKAGE BODY");
+            this.setCursor(Cursor.getPredefinedCursor(Cursor.DEFAULT_CURSOR));
         }
     }//GEN-LAST:event_jButtonErrorCodesActionPerformed
 
@@ -1788,8 +1797,10 @@ public class AppJFrame extends javax.swing.JFrame {
     private void jComboUserPopupMenuWillBecomeInvisible(javax.swing.event.PopupMenuEvent evt) {//GEN-FIRST:event_jComboUserPopupMenuWillBecomeInvisible
         Object selItem = jComboUser.getSelectedItem();
         if (selItem != null) {
+            this.setCursor(Cursor.getPredefinedCursor(Cursor.WAIT_CURSOR));
             PopulatePackages(selItem.toString());
             jComboPackagesActionPerformed(null);
+            this.setCursor(Cursor.getPredefinedCursor(Cursor.DEFAULT_CURSOR));
         }
     }//GEN-LAST:event_jComboUserPopupMenuWillBecomeInvisible
 
@@ -1853,7 +1864,6 @@ public class AppJFrame extends javax.swing.JFrame {
     private javax.swing.JLabel jLabel4;
     private javax.swing.JLabel jLabel5;
     private javax.swing.JLabel jLabel6;
-    private javax.swing.JLabel jLabel7;
     private javax.swing.JPanel jPanel1;
     private javax.swing.JPanel jPanel2;
     private javax.swing.JPanel jPanel3;

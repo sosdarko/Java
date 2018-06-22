@@ -22,6 +22,8 @@ public class Branch implements Serializable {
 
     static final long serialVersionUID = 1L;
 
+    public Branch() {}
+    
     public Branch(String name, String connString) {
         this.name = name;
         this.connString = connString;
@@ -60,6 +62,10 @@ public class Branch implements Serializable {
     
     public String getConnString() {
         return connString;
+    }
+    
+    public String getUserAtDB() {
+        return UserName + "@" + TnsEntry;
     }
 
     public String getName() {
@@ -106,6 +112,10 @@ public class Branch implements Serializable {
         this.UserName = UserName;
     }
 
+    public void setURL(String URL) {
+        this.URL = URL;
+    }
+    
     @Override
     public String toString() {
         return name;
