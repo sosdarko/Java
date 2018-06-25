@@ -115,6 +115,61 @@ public class AppJFrame extends javax.swing.JFrame {
         JOptionPane.showMessageDialog(this, text);
     }
 
+    public void Connect() {
+        if (currentBranch == null) {
+            ShowError("Choose connection first!");
+            return;
+        }
+
+        if (myConnection != null) {
+            try {
+                if (!myConnection.isClosed()) {
+                    myConnection.close();
+                }
+            } catch (SQLException ex) {
+                Logger.getLogger(AppJFrame.class.getName()).log(Level.SEVERE, null, ex);
+                ShowError("Error while trying to close existing connection! " + ex.getMessage());
+            }
+        }
+
+        try {
+            myOds = new OracleDataSource();
+        } catch (SQLException ex) {
+            Logger.getLogger(AppJFrame.class.getName()).log(Level.SEVERE, null, ex);
+            ShowError("Unable to instantiate OracleDataSource! " + ex.getMessage());
+            return;
+        }
+        String sConnStr;
+        if (!"".equals(currentBranch.getURL())) {
+            myOds.setURL(currentBranch.getURL());
+            sConnStr = currentBranch.getURL();
+            myOds.setDriverType("thin");
+        }
+        else {
+            myOds.setTNSEntryName(currentBranch.getTnsEntry());
+            sConnStr = currentBranch.getTnsEntry();
+            myOds.setDriverType("oci8");
+        }
+        myOds.setUser(currentBranch.getUserName());
+        myOds.setPassword(currentBranch.getPassword());
+        Logger.getLogger(AppJFrame.class.getName()).log(Level.INFO, "connecting using {0}", currentBranch.getUserAtDB() + " " + myOds.getDriverType());
+        try {
+            myConnection = myOds.getConnection();
+            Logger.getLogger(AppJFrame.class.getName()).log(Level.INFO, "connected");
+        } catch (SQLException|UnsatisfiedLinkError ex) {
+            Logger.getLogger(AppJFrame.class.getName()).log(Level.SEVERE, null, ex);
+            ShowError(String.format("Error connect using %s, %s:\n%s", myOds.getUser(), sConnStr, ex.getMessage()));
+            try {
+                ShowError("URL=" + myOds.getURL());
+            } catch (SQLException ex1) {
+                Logger.getLogger(AppJFrame.class.getName()).log(Level.SEVERE, null, ex1);
+                ShowError("Could not get URL from data source! " + ex.getMessage());
+            }
+            return;
+        }
+        PopulateUsers();
+    }
+
     public void PopulateUsers()
     {
         Statement stmt = null;
@@ -1627,52 +1682,7 @@ public class AppJFrame extends javax.swing.JFrame {
     }//GEN-LAST:event_jButtonAddBranchActionPerformed
 
     private void jButtonConnectActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jButtonConnectActionPerformed
-        if (currentBranch == null)
-            return;
-
-        if (myConnection != null) {
-            try {
-                if (!myConnection.isClosed()) {
-                    myConnection.close();
-                }
-            } catch (SQLException ex) {
-                Logger.getLogger(AppJFrame.class.getName()).log(Level.SEVERE, null, ex);
-            }
-        }
-
-        try {
-            myOds = new OracleDataSource();
-        } catch (SQLException ex) {
-            Logger.getLogger(AppJFrame.class.getName()).log(Level.SEVERE, null, ex);
-            return;
-        }
-        String sConnStr;
-        if (!"".equals(currentBranch.getURL())) {
-            myOds.setURL(currentBranch.getURL());
-            sConnStr = currentBranch.getURL();
-            myOds.setDriverType("thin");
-        }
-        else {
-            myOds.setTNSEntryName(currentBranch.getTnsEntry());
-            sConnStr = currentBranch.getTnsEntry();
-            myOds.setDriverType("oci8");
-        }
-        myOds.setUser(currentBranch.getUserName());
-        myOds.setPassword(currentBranch.getPassword());
-        Logger.getLogger(AppJFrame.class.getName()).log(Level.INFO, "connecting using {0}", currentBranch.getUserAtDB() + " " + myOds.getDriverType());
-        try {
-            myConnection = myOds.getConnection();
-            Logger.getLogger(AppJFrame.class.getName()).log(Level.INFO, "connected");
-            PopulateUsers();
-        } catch (SQLException ex) {
-            Logger.getLogger(AppJFrame.class.getName()).log(Level.SEVERE, null, ex);
-            ShowError(String.format("Connect using %s, %s, with following error:\n%s", myOds.getUser(), sConnStr, ex.getMessage()));
-            try {
-                ShowError("URL=" + myOds.getURL());
-            } catch (SQLException ex1) {
-                Logger.getLogger(AppJFrame.class.getName()).log(Level.SEVERE, null, ex1);
-            }
-        }
+        Connect();
     }//GEN-LAST:event_jButtonConnectActionPerformed
 
     private void jButtonChooseTNSDirActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jButtonChooseTNSDirActionPerformed
